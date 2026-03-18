@@ -1,0 +1,10 @@
+.next
+node_modules
+.env
+.env.local
+dist
+coverage
+.npm-cache
+.DS_Store
+clinics.csv
+clinic_with_email.csv
