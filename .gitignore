@@ -6,5 +6,12 @@ dist
 coverage
 .npm-cache
 .DS_Store
-clinics.csv
-clinic_with_email.csv
+AGENTS.md
+*.csv
+firebase-debug.log
+test-results/
+tsconfig.tsbuildinfo
+
+# Claude Code project-local settings
+.claude/
+.serena/

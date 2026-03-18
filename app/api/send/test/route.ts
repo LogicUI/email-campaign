@@ -1,23 +1,21 @@
 import { NextResponse } from "next/server";
 
-import { getResendClient, getResendFromEmail } from "@/lib/server/resend-client";
-import { renderHtmlFromText } from "@/lib/server/render-email";
+import { renderHtmlFromText } from "@/core/email/render-email";
+import { getResendClient, getResendFromEmail } from "@/core/integrations/resend-client";
+import { getZodErrorMessage, testEmailRequestSchema } from "@/zodSchemas/api";
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as {
-      to?: string;
-      subject?: string;
-      body?: string;
-    };
+    const parsedPayload = testEmailRequestSchema.safeParse(await request.json());
 
-    if (!payload.to || !payload.subject || !payload.body) {
+    if (!parsedPayload.success) {
       return NextResponse.json(
-        { ok: false, error: "Invalid test email payload." },
+        { ok: false, error: getZodErrorMessage(parsedPayload.error) },
         { status: 400 },
       );
     }
 
+    const payload = parsedPayload.data;
     const resend = getResendClient();
     const response = await resend.emails.send({
       from: getResendFromEmail(),

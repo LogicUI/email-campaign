@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { getOpenAiClient, getOpenAiModel } from "@/lib/server/openai-client";
+import { getOpenAiClient, getOpenAiModel } from "@/core/integrations/openai-client";
+import {
+  getZodErrorMessage,
+  regenerateProviderResponseSchema,
+  regenerateRequestSchema,
+} from "@/zodSchemas/api";
 import type { RegenerateRequest, RegenerateResponse } from "@/types/api";
 
 function buildPrompt(body: RegenerateRequest) {
@@ -20,15 +25,16 @@ function buildPrompt(body: RegenerateRequest) {
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as RegenerateRequest;
+    const parsedPayload = regenerateRequestSchema.safeParse(await request.json());
 
-    if (!payload.recipientId || !payload.currentBody || !payload.recipient?.email) {
+    if (!parsedPayload.success) {
       return NextResponse.json<RegenerateResponse>(
-        { ok: false, error: "Invalid regenerate payload." },
+        { ok: false, error: getZodErrorMessage(parsedPayload.error) },
         { status: 400 },
       );
     }
 
+    const payload = parsedPayload.data;
     const client = getOpenAiClient();
     const model = getOpenAiModel();
     const completion = await client.chat.completions.create({
@@ -53,16 +59,13 @@ export async function POST(request: Request) {
       throw new Error("AI provider returned an empty response.");
     }
 
-    const parsed = JSON.parse(content) as {
-      body?: string;
-      subject?: string;
-      reasoning?: string;
-    };
+    const parsedResponse = regenerateProviderResponseSchema.safeParse(JSON.parse(content));
 
-    if (!parsed.body?.trim()) {
-      throw new Error("AI provider did not return a body.");
+    if (!parsedResponse.success) {
+      throw new Error(getZodErrorMessage(parsedResponse.error));
     }
 
+    const parsed = parsedResponse.data;
     return NextResponse.json<RegenerateResponse>({
       ok: true,
       data: {

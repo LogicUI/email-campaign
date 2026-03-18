@@ -1,38 +1,28 @@
 import { NextResponse } from "next/server";
 
-import { chunk } from "@/lib/utils/chunk";
-import { getResendClient, getResendFromEmail } from "@/lib/server/resend-client";
-import { renderHtmlFromText } from "@/lib/server/render-email";
-import type { BulkSendRequest, BulkSendResponse, BulkSendResultItem } from "@/types/api";
+import { chunk } from "@/core/utils/chunk";
+import { renderHtmlFromText } from "@/core/email/render-email";
+import { getResendClient, getResendFromEmail } from "@/core/integrations/resend-client";
+import {
+  bulkSendRequestSchema,
+  getZodErrorMessage,
+} from "@/zodSchemas/api";
+import type { BulkSendResponse, BulkSendResultItem } from "@/types/api";
 
 const CONCURRENCY = 5;
-const MAX_RECIPIENTS = 100;
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as BulkSendRequest;
+    const parsedPayload = bulkSendRequestSchema.safeParse(await request.json());
 
-    if (!payload.campaignId || !payload.sendJobId || !Array.isArray(payload.recipients)) {
+    if (!parsedPayload.success) {
       return NextResponse.json<BulkSendResponse>(
-        { ok: false, error: "Invalid bulk send payload." },
+        { ok: false, error: getZodErrorMessage(parsedPayload.error) },
         { status: 400 },
       );
     }
 
-    if (payload.recipients.length === 0) {
-      return NextResponse.json<BulkSendResponse>(
-        { ok: false, error: "No recipients supplied." },
-        { status: 400 },
-      );
-    }
-
-    if (payload.recipients.length > MAX_RECIPIENTS) {
-      return NextResponse.json<BulkSendResponse>(
-        { ok: false, error: `Limit bulk sends to ${MAX_RECIPIENTS} recipients per request.` },
-        { status: 400 },
-      );
-    }
-
+    const payload = parsedPayload.data;
     const resend = getResendClient();
     const from = getResendFromEmail();
     const results: BulkSendResultItem[] = [];

@@ -26,6 +26,12 @@
     --radius: 1rem;
   }
 
+  html {
+    min-height: 100%;
+    background-color: hsl(var(--background));
+    color-scheme: light;
+  }
+
   * {
     @apply border-border;
   }
@@ -35,6 +41,34 @@
     background-image:
       radial-gradient(circle at top left, rgba(239, 193, 122, 0.22), transparent 28%),
       radial-gradient(circle at bottom right, rgba(89, 161, 120, 0.16), transparent 24%);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  input,
+  textarea {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-text-fill-color: hsl(var(--foreground));
+    -webkit-box-shadow: 0 0 0 1000px hsl(var(--card)) inset;
+    transition: background-color 9999s ease-in-out 0s;
   }
 }
 

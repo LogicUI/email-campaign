@@ -54,7 +54,7 @@ Imported headers are normalized to lowercase snake_case-style keys, so a column 
 ### Requirements
 
 - Node.js 18+
-- npm
+- Bun 1.3+
 - A Resend account and API key
 - An OpenAI API key if you want AI regeneration enabled
 
@@ -78,8 +78,8 @@ Notes:
 ### Run the app
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Then open `http://localhost:3000`.
@@ -113,18 +113,21 @@ Sends a single test email through Resend.
 app/
   api/ai/regenerate/route.ts   # OpenAI rewrite endpoint
   api/send/bulk/route.ts       # Bulk send endpoint
+  components/
+    campaign/                  # Campaign-level UI
+    data-import/               # Upload and preview UI
+    recipient/                 # Per-recipient draft cards
+  core/
+    campaign/                  # Template merge and draft creation
+    email/                     # Email rendering helpers
+    excel/                     # Spreadsheet parsing and validation
+    integrations/              # Third-party API clients
+    utils/                     # Shared utilities
+  hooks/                       # Client-side workflow hooks
   page.tsx                     # Main campaign builder page
-components/
-  campaign/                    # Campaign-level UI
-  import/                      # Upload and preview UI
-  recipient/                   # Per-recipient draft cards
-hooks/                         # Client-side workflow hooks
-lib/
-  campaign/                    # Template merge and draft creation
-  excel/                       # Spreadsheet parsing and validation
-  server/                      # OpenAI and Resend clients
-store/                         # Zustand campaign store
-types/                         # Shared API and campaign types
+  store/                       # Zustand campaign store
+  types/                       # Shared API and campaign types
+  zodSchemas/                  # Runtime request/response schemas
 ```
 
 ## Good fit for this project
