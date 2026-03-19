@@ -6,6 +6,8 @@ export interface SendSummaryBarProps {
   isSending: boolean;
   progress: CampaignSendProgress;
   error?: string | null;
+  onAddRecipient: () => void;
+  onClearAllSelected: () => void;
   onSendSelected: () => void;
   onRetryFailed: () => void;
   onCheckVisible: () => void;

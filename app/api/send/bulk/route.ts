@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { createAuthErrorResponse, getAuthToken, requireApiSession } from "@/api/_lib/api-auth";
 import { chunk } from "@/core/utils/chunk";
 import { renderHtmlFromText } from "@/core/email/render-email";
-import { getResendClient, getResendFromEmail } from "@/core/integrations/resend-client";
+import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/google-access-token";
+import { sendGmailMessage } from "@/core/integrations/gmail-client";
 import {
   bulkSendRequestSchema,
   getZodErrorMessage,
@@ -11,8 +13,14 @@ import type { BulkSendResponse, BulkSendResultItem } from "@/types/api";
 
 const CONCURRENCY = 5;
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiSession();
+
+    if ("response" in authResult) {
+      return authResult.response;
+    }
+
     const parsedPayload = bulkSendRequestSchema.safeParse(await request.json());
 
     if (!parsedPayload.success) {
@@ -23,29 +31,26 @@ export async function POST(request: Request) {
     }
 
     const payload = parsedPayload.data;
-    const resend = getResendClient();
-    const from = getResendFromEmail();
+    const authToken = await getAuthToken(request);
+    const accessToken = await getValidGoogleAccessToken(authToken);
     const results: BulkSendResultItem[] = [];
 
     for (const group of chunk(payload.recipients, CONCURRENCY)) {
       const settled = await Promise.allSettled(
         group.map(async (recipient) => {
-          const response = await resend.emails.send({
-            from,
-            to: recipient.email,
+          const response = await sendGmailMessage({
+            accessToken,
+            bodyHtml: renderHtmlFromText(recipient.body),
+            bodyText: recipient.body,
+            fromEmail: authResult.session.user.email,
             subject: recipient.subject,
-            text: recipient.body,
-            html: renderHtmlFromText(recipient.body),
+            toEmail: recipient.email,
           });
-
-          if (response.error) {
-            throw new Error(response.error.message);
-          }
 
           return {
             recipientId: recipient.id,
             status: "sent" as const,
-            resendId: response.data?.id,
+            providerMessageId: response.id,
           };
         }),
       );
@@ -60,7 +65,7 @@ export async function POST(request: Request) {
           recipientId: group[index].id,
           status: "failed",
           errorMessage:
-            entry.reason instanceof Error ? entry.reason.message : "Resend send failed.",
+            entry.reason instanceof Error ? entry.reason.message : "Gmail send failed.",
         });
       });
     }
@@ -73,6 +78,10 @@ export async function POST(request: Request) {
       },
     });
   } catch (caughtError) {
+    if (caughtError instanceof ReauthRequiredError) {
+      return createAuthErrorResponse(caughtError.code);
+    }
+
     const message =
       caughtError instanceof Error ? caughtError.message : "Bulk send failed.";
 

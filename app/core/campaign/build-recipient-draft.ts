@@ -12,6 +12,7 @@ export function buildRecipientDraft(params: {
   return {
     id: createId("recipient"),
     rowIndex: row.rowIndex,
+    source: "imported",
     email: row.email ?? "",
     subject: mergeTemplate(globalSubject, row.fields),
     body: mergeTemplate(globalBodyTemplate, row.fields),
@@ -22,6 +23,7 @@ export function buildRecipientDraft(params: {
     bodySource: "global-template",
     manualEditsSinceGenerate: false,
     isRegenerating: false,
+    regenerationPhase: "idle",
     isSending: false,
   };
 }

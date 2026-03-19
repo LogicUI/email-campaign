@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, TriangleAlert } from "lucide-react";
+import { Mail, Send, TriangleAlert, X } from "lucide-react";
 
 import { useRecipientEditor } from "@/hooks/use-recipient-editor";
 import { useRecipientRegenerate } from "@/hooks/use-recipient-regenerate";
@@ -12,9 +12,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { RecipientEmailCardProps } from "@/types/recipient-email-card";
 
-export function RecipientEmailCard({ recipientId }: RecipientEmailCardProps) {
-  const { onBodyChange, onCheckedChange, onSubjectChange, recipient } =
-    useRecipientEditor(recipientId);
+export function RecipientEmailCard({
+  recipientId,
+  senderEmail,
+}: RecipientEmailCardProps) {
+  const {
+    onBodyChange,
+    onCheckedChange,
+    onEmailChange,
+    onRemove,
+    onSubjectChange,
+    recipient,
+  } = useRecipientEditor(recipientId);
   const { error, isRegenerating, regenerate } = useRecipientRegenerate(recipientId);
 
   if (!recipient) {
@@ -27,14 +36,49 @@ export function RecipientEmailCard({ recipientId }: RecipientEmailCardProps) {
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <CardTitle className="text-lg">
-              {recipient.fields.clinic_name ? String(recipient.fields.clinic_name) : recipient.email}
+              {recipient.source === "manual"
+                ? recipient.email || "New recipient"
+                : recipient.fields.clinic_name
+                  ? String(recipient.fields.clinic_name)
+                  : recipient.email}
             </CardTitle>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Mail className="h-4 w-4" />
-              <span className="truncate">{recipient.email}</span>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                <span className="font-medium">To</span>
+              </div>
+              {recipient.source === "manual" ? (
+                <Input
+                  aria-label={`Recipient email ${recipient.id}`}
+                  placeholder="recipient@example.com"
+                  value={recipient.email}
+                  onChange={(event) => onEmailChange(event.target.value)}
+                  disabled={recipient.isSending || recipient.isRegenerating}
+                />
+              ) : (
+                <span className="truncate">{recipient.email}</span>
+              )}
+              <div className="flex items-center gap-2">
+                <Send className="h-4 w-4" />
+                <span className="font-medium">From</span>
+                <span className="truncate">{senderEmail}</span>
+              </div>
             </div>
           </div>
-          <Badge variant="outline">Row {recipient.rowIndex}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">
+              {recipient.source === "manual" ? "Manual" : `Row ${recipient.rowIndex}`}
+            </Badge>
+            <button
+              type="button"
+              aria-label={`Remove recipient ${recipient.id}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={onRemove}
+              disabled={recipient.isSending || recipient.isRegenerating}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         <RecipientCardToolbar
           checked={recipient.checked}
@@ -53,7 +97,7 @@ export function RecipientEmailCard({ recipientId }: RecipientEmailCardProps) {
             id={`subject-${recipient.id}`}
             value={recipient.subject}
             onChange={(event) => onSubjectChange(event.target.value)}
-            disabled={recipient.isSending}
+            disabled={recipient.isSending || recipient.isRegenerating}
           />
         </div>
         <div className="space-y-2">
@@ -63,7 +107,7 @@ export function RecipientEmailCard({ recipientId }: RecipientEmailCardProps) {
             value={recipient.body}
             onChange={(event) => onBodyChange(event.target.value)}
             className="min-h-[240px]"
-            disabled={recipient.isSending}
+            disabled={recipient.isSending || recipient.isRegenerating}
           />
         </div>
         {error || recipient.errorMessage ? (

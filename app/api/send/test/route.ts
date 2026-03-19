@@ -1,11 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { createAuthErrorResponse, getAuthToken, requireApiSession } from "@/api/_lib/api-auth";
+import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/google-access-token";
 import { renderHtmlFromText } from "@/core/email/render-email";
-import { getResendClient, getResendFromEmail } from "@/core/integrations/resend-client";
+import { sendGmailMessage } from "@/core/integrations/gmail-client";
 import { getZodErrorMessage, testEmailRequestSchema } from "@/zodSchemas/api";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiSession();
+
+    if ("response" in authResult) {
+      return authResult.response;
+    }
+
     const parsedPayload = testEmailRequestSchema.safeParse(await request.json());
 
     if (!parsedPayload.success) {
@@ -16,26 +24,28 @@ export async function POST(request: Request) {
     }
 
     const payload = parsedPayload.data;
-    const resend = getResendClient();
-    const response = await resend.emails.send({
-      from: getResendFromEmail(),
-      to: payload.to,
+    const authToken = await getAuthToken(request);
+    const accessToken = await getValidGoogleAccessToken(authToken);
+    const response = await sendGmailMessage({
+      accessToken,
+      bodyHtml: renderHtmlFromText(payload.body),
+      bodyText: payload.body,
+      fromEmail: authResult.session.user.email,
       subject: payload.subject,
-      text: payload.body,
-      html: renderHtmlFromText(payload.body),
+      toEmail: payload.to,
     });
-
-    if (response.error) {
-      throw new Error(response.error.message);
-    }
 
     return NextResponse.json({
       ok: true,
       data: {
-        resendId: response.data?.id,
+        providerMessageId: response.id,
       },
     });
   } catch (caughtError) {
+    if (caughtError instanceof ReauthRequiredError) {
+      return createAuthErrorResponse(caughtError.code);
+    }
+
     const message =
       caughtError instanceof Error ? caughtError.message : "Test email failed.";
 

@@ -1,4 +1,4 @@
-import { AlertCircle, Send, WandSparkles } from "lucide-react";
+import { AlertCircle, Plus, Send, WandSparkles, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,9 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
     error,
     failedCount,
     isSending,
+    onAddRecipient,
     onCheckVisible,
+    onClearAllSelected,
     onRetryFailed,
     onSendSelected,
     onUncheckVisible,
@@ -42,9 +44,21 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-3">
+          <Button onClick={onAddRecipient}>
+            <Plus className="h-4 w-4" />
+            New recipient
+          </Button>
           <Button onClick={onSendSelected} disabled={checkedCount === 0 || isSending}>
             <Send className="h-4 w-4" />
             {isSending ? "Sending..." : "Send selected"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={onClearAllSelected}
+            disabled={checkedCount === 0}
+          >
+            <X className="h-4 w-4" />
+            Clear all selected
           </Button>
           <Button variant="outline" onClick={onRetryFailed} disabled={failedCount === 0}>
             <WandSparkles className="h-4 w-4" />

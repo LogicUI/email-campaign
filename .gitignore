@@ -11,6 +11,8 @@ AGENTS.md
 firebase-debug.log
 test-results/
 tsconfig.tsbuildinfo
+!AGENTS.md
+!app/tests/fixtures/*.csv
 
 # Claude Code project-local settings
 .claude/

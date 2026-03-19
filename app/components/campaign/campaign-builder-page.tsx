@@ -7,7 +7,7 @@ import { useCampaignBuilder } from "@/hooks/use-campaign-builder";
 import { useExcelImport } from "@/hooks/use-excel-import";
 import { useRecipientPagination } from "@/hooks/use-recipient-pagination";
 import { useCampaignStore } from "@/store/campaign-store";
-import { selectUi } from "@/store/selectors";
+import { selectRecipientOrder, selectUi } from "@/store/selectors";
 import { CampaignComposeDialog } from "@/components/campaign/campaign-compose-dialog";
 import { CampaignHeaderBar } from "@/components/campaign/campaign-header-bar";
 import { SendSummaryBar } from "@/components/campaign/send-summary-bar";
@@ -15,9 +15,13 @@ import { FileUploadDropzone } from "@/components/data-import/file-upload-dropzon
 import { ImportPreviewDialog } from "@/components/data-import/import-preview-dialog";
 import { RecipientList } from "@/components/recipient/recipient-list";
 import { RecipientPaginationBar } from "@/components/recipient/recipient-pagination-bar";
+import type { CampaignBuilderPageProps } from "@/types/campaign-builder-page";
 
-export function CampaignBuilderPage() {
+export function CampaignBuilderPage({
+  senderEmail = "authenticated@example.com",
+}: CampaignBuilderPageProps) {
   const ui = useCampaignStore(selectUi);
+  const recipientOrder = useCampaignStore(selectRecipientOrder);
   const toggleRecipientsChecked = useCampaignStore((state) => state.toggleRecipientsChecked);
   const {
     canStartCampaign,
@@ -25,6 +29,7 @@ export function CampaignBuilderPage() {
     closeComposeDialog,
     composeDialogOpen,
     createCampaignFromPreview,
+    addManualRecipient,
     openComposeDialog,
     preview,
     resetSession,
@@ -60,6 +65,7 @@ export function CampaignBuilderPage() {
             <>
               <CampaignHeaderBar
                 campaign={campaign}
+                senderEmail={senderEmail}
                 totalRecipients={totalRecipients}
                 onEditTemplate={openComposeDialog}
                 onReset={resetSession}
@@ -70,6 +76,8 @@ export function CampaignBuilderPage() {
                 isSending={bulkSend.isSending}
                 progress={bulkSend.progress}
                 error={bulkSend.error}
+                onAddRecipient={addManualRecipient}
+                onClearAllSelected={() => toggleRecipientsChecked(recipientOrder, false)}
                 onSendSelected={bulkSend.sendSelected}
                 onRetryFailed={bulkSend.retryFailed}
                 onCheckVisible={() => toggleRecipientsChecked(visibleIds, true)}
@@ -83,7 +91,7 @@ export function CampaignBuilderPage() {
                 onPageChange={setCurrentPage}
                 onPageSizeChange={setPageSize}
               />
-              <RecipientList recipientIds={visibleIds} />
+              <RecipientList recipientIds={visibleIds} senderEmail={senderEmail} />
             </>
           ) : (
             <div className="grid gap-8 lg:grid-cols-[1.3fr_0.7fr]">
@@ -97,11 +105,12 @@ export function CampaignBuilderPage() {
                   Prototype workflow
                 </p>
                 <ol className="mt-4 space-y-4 text-sm text-muted-foreground">
-                  <li>1. Upload a CSV or Excel file with flexible lead columns.</li>
-                  <li>2. Confirm the email column and preview invalid rows.</li>
-                  <li>3. Define one global subject and body template.</li>
-                  <li>4. Edit, regenerate, paginate, select, and send drafts.</li>
-                  <li>5. Refreshing the page clears the entire in-memory session.</li>
+                  <li>1. Sign in with Google to unlock the protected workspace.</li>
+                  <li>2. Upload a CSV or Excel file with flexible lead columns.</li>
+                  <li>3. Confirm the email column and preview invalid rows.</li>
+                  <li>4. Define one global subject and body template.</li>
+                  <li>5. Edit, regenerate, paginate, select, and send drafts.</li>
+                  <li>6. Refreshing the page keeps auth, but draft data remains in memory.</li>
                 </ol>
               </div>
             </div>

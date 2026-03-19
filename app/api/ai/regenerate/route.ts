@@ -1,30 +1,24 @@
 import { NextResponse } from "next/server";
 
-import { getOpenAiClient, getOpenAiModel } from "@/core/integrations/openai-client";
+import { requireApiSession } from "@/api/_lib/api-auth";
+import { buildRegeneratePrompt } from "@/core/ai/build-regenerate-prompt";
+import { dispatchRegenerate } from "@/core/ai/dispatch-regenerate";
+import { AI_PROVIDER_CATALOG } from "@/core/ai/provider-defaults";
+import { formatSseEvent } from "@/core/ai/sse";
 import {
   getZodErrorMessage,
-  regenerateProviderResponseSchema,
   regenerateRequestSchema,
 } from "@/zodSchemas/api";
-import type { RegenerateRequest, RegenerateResponse } from "@/types/api";
-
-function buildPrompt(body: RegenerateRequest) {
-  return [
-    "Rewrite a single outbound email draft.",
-    "Keep the tone concise, helpful, and personalized.",
-    "Do not invent facts that are not in the recipient fields or draft.",
-    "Return strict JSON with keys: body, subject, reasoning.",
-    `Rewrite mode: ${body.mode ?? "refresh"}`,
-    `Global subject template: ${body.globalSubject}`,
-    `Global body template: ${body.globalBodyTemplate}`,
-    `Current draft: ${body.currentBody}`,
-    `Recipient email: ${body.recipient.email}`,
-    `Recipient fields: ${JSON.stringify(body.recipient.fields)}`,
-  ].join("\n");
-}
+import type { RegenerateResponse } from "@/types/api";
 
 export async function POST(request: Request) {
   try {
+    const authResult = await requireApiSession();
+
+    if ("response" in authResult) {
+      return authResult.response;
+    }
+
     const parsedPayload = regenerateRequestSchema.safeParse(await request.json());
 
     if (!parsedPayload.success) {
@@ -35,44 +29,76 @@ export async function POST(request: Request) {
     }
 
     const payload = parsedPayload.data;
-    const client = getOpenAiClient();
-    const model = getOpenAiModel();
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            "You rewrite outbound sales emails. Output valid JSON only. Keep the body under 180 words unless the current draft is shorter.",
-        },
-        {
-          role: "user",
-          content: buildPrompt(payload),
-        },
-      ],
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const enqueue = (chunk: string) => {
+          controller.enqueue(encoder.encode(chunk));
+        };
+
+        try {
+          enqueue(
+            formatSseEvent({
+              type: "start",
+              recipientId: payload.recipientId,
+            }),
+          );
+
+          const parsed = await dispatchRegenerate({
+            apiKey: payload.apiKey,
+            model:
+              payload.model?.trim() || AI_PROVIDER_CATALOG[payload.provider].defaultModel,
+            onBodyDelta: (chunk) => {
+              if (!chunk) {
+                return;
+              }
+
+              enqueue(
+                formatSseEvent({
+                  type: "body_delta",
+                  recipientId: payload.recipientId,
+                  chunk,
+                }),
+              );
+            },
+            prompt: buildRegeneratePrompt(payload, authResult.session.user.email),
+            provider: payload.provider,
+            systemInstruction:
+              "You rewrite outbound sales emails. Return only the final email body text. Keep it under 180 words unless the current draft is shorter.",
+          });
+
+          enqueue(
+            formatSseEvent({
+              type: "final",
+              recipientId: payload.recipientId,
+              subject: parsed.subject?.trim() || undefined,
+              body: parsed.body.trim(),
+              reasoning: parsed.reasoning?.trim(),
+            }),
+          );
+        } catch (caughtError) {
+          const message =
+            caughtError instanceof Error ? caughtError.message : "AI regenerate failed.";
+
+          enqueue(
+            formatSseEvent({
+              type: "error",
+              recipientId: payload.recipientId,
+              error: message,
+            }),
+          );
+        } finally {
+          controller.close();
+        }
+      },
     });
 
-    const content = completion.choices[0]?.message?.content;
-
-    if (!content) {
-      throw new Error("AI provider returned an empty response.");
-    }
-
-    const parsedResponse = regenerateProviderResponseSchema.safeParse(JSON.parse(content));
-
-    if (!parsedResponse.success) {
-      throw new Error(getZodErrorMessage(parsedResponse.error));
-    }
-
-    const parsed = parsedResponse.data;
-    return NextResponse.json<RegenerateResponse>({
-      ok: true,
-      data: {
-        recipientId: payload.recipientId,
-        subject: parsed.subject?.trim() || undefined,
-        body: parsed.body.trim(),
-        reasoning: parsed.reasoning?.trim(),
+    return new Response(stream, {
+      headers: {
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (caughtError) {
@@ -80,7 +106,10 @@ export async function POST(request: Request) {
       caughtError instanceof Error ? caughtError.message : "AI regenerate failed.";
 
     return NextResponse.json<RegenerateResponse>(
-      { ok: false, error: message },
+      {
+        ok: false,
+        error: message,
+      },
       { status: 500 },
     );
   }

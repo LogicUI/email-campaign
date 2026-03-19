@@ -2,6 +2,7 @@
 
 import { FileSpreadsheet, Upload } from "lucide-react";
 
+import { AiSettingsTrigger } from "@/components/settings/ai-settings-trigger";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FileUploadDropzoneProps } from "@/types/file-upload-dropzone";
@@ -53,6 +54,7 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
           </Button>
           <span>All recipient data stays in memory until the page refreshes.</span>
         </div>
+        <AiSettingsTrigger context="upload" />
       </CardContent>
     </Card>
   );

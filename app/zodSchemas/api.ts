@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { LLM_PROVIDERS } from "@/core/ai/provider-defaults";
 import { primitiveFieldValueSchema } from "@/zodSchemas/shared";
 
 const requiredString = (message: string) => z.string().trim().min(1, message);
@@ -35,6 +36,9 @@ export const regenerateRequestSchema = z.object({
   globalSubject: z.string(),
   globalBodyTemplate: z.string(),
   currentBody: requiredString("Current draft body is required."),
+  provider: z.enum(LLM_PROVIDERS),
+  apiKey: requiredString("Provider API key is required."),
+  model: z.string().trim().optional(),
   recipient: z.object({
     email: recipientEmailSchema,
     fields: z.record(z.string(), primitiveFieldValueSchema),

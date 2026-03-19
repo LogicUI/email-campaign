@@ -2,11 +2,17 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, vi } from "vitest";
 
+import { initialAiSettingsState, useAiSettingsStore } from "@/store/ai-settings-store";
 import { useCampaignStore } from "@/store/campaign-store";
 
 const initialStoreState = useCampaignStore.getState();
 
 beforeAll(() => {
+  process.env.AUTH_SECRET = "test-auth-secret";
+  process.env.AUTH_GOOGLE_ID = "google-client-id";
+  process.env.AUTH_GOOGLE_SECRET = "google-client-secret";
+  process.env.NEXTAUTH_URL = "http://localhost:3000";
+
   class ResizeObserverMock {
     observe() {}
     unobserve() {}
@@ -43,6 +49,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  localStorage.clear();
+  useAiSettingsStore.setState(initialAiSettingsState);
   useCampaignStore.setState(initialStoreState, true);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();

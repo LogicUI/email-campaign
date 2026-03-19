@@ -26,6 +26,7 @@ export interface Campaign {
 export interface CampaignRecipient {
   id: string;
   rowIndex: number;
+  source: "imported" | "manual";
   email: string;
   subject: string;
   body: string;
@@ -38,9 +39,12 @@ export interface CampaignRecipient {
   lastGenerationAt?: string;
   manualEditsSinceGenerate: boolean;
   isRegenerating: boolean;
+  regenerationPhase: "idle" | "streaming" | "finalizing";
+  streamOriginalBody?: string;
+  lastGenerationReasoning?: string;
   isSending: boolean;
   lastSendAttemptAt?: string;
-  lastResendId?: string;
+  lastProviderMessageId?: string;
   errorMessage?: string;
 }
 

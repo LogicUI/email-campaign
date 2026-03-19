@@ -5,8 +5,8 @@
   "packageManager": "bun@1.3.10",
   "scripts": {
     "clean": "rm -rf .next",
-    "dev": "bun run clean && next dev --hostname 127.0.0.1",
-    "dev:3001": "bun run clean && next dev --hostname 127.0.0.1 --port 3001",
+    "dev": "next dev --hostname 127.0.0.1",
+    "dev:3001": "next dev --hostname 127.0.0.1 --port 3001",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "preview": "bun run clean && next build && next start --hostname 127.0.0.1 --port 3001",
@@ -18,6 +18,8 @@
     "test:all": "bun run test && bun run test:e2e"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@google/genai": "^1.46.0",
     "@notionhq/client": "^5.13.0",
     "@radix-ui/react-checkbox": "^1.1.2",
     "@radix-ui/react-dialog": "^1.1.2",
@@ -29,10 +31,10 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.454.0",
     "next": "14.2.16",
+    "next-auth": "^4.24.13",
     "openai": "^4.73.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "resend": "^4.0.1",
     "tailwind-merge": "^2.5.4",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6",

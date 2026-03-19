@@ -1,3 +1,4 @@
+import type { LlmProvider } from "@/types/ai-settings";
 import type { PrimitiveFieldValue } from "@/types/campaign";
 
 export interface RegenerateRequest {
@@ -5,6 +6,9 @@ export interface RegenerateRequest {
   globalSubject: string;
   globalBodyTemplate: string;
   currentBody: string;
+  provider: LlmProvider;
+  apiKey: string;
+  model?: string;
   recipient: {
     email: string;
     fields: Record<string, PrimitiveFieldValue>;
@@ -14,6 +18,7 @@ export interface RegenerateRequest {
 
 export interface RegenerateResponse {
   ok: boolean;
+  code?: ApiErrorCode;
   data?: {
     recipientId: string;
     subject?: string;
@@ -23,12 +28,45 @@ export interface RegenerateResponse {
   error?: string;
 }
 
+export interface RegenerateStreamStartEvent {
+  type: "start";
+  recipientId: string;
+}
+
+export interface RegenerateStreamBodyDeltaEvent {
+  type: "body_delta";
+  recipientId: string;
+  chunk: string;
+}
+
+export interface RegenerateStreamFinalEvent {
+  type: "final";
+  recipientId: string;
+  body: string;
+  subject?: string;
+  reasoning?: string;
+}
+
+export interface RegenerateStreamErrorEvent {
+  type: "error";
+  recipientId: string;
+  error: string;
+}
+
+export type RegenerateStreamEvent =
+  | RegenerateStreamStartEvent
+  | RegenerateStreamBodyDeltaEvent
+  | RegenerateStreamFinalEvent
+  | RegenerateStreamErrorEvent;
+
 export interface SendPayloadRecipient {
   id: string;
   email: string;
   subject: string;
   body: string;
 }
+
+export type ApiErrorCode = "REAUTH_REQUIRED" | "UNAUTHORIZED";
 
 export interface BulkSendRequest {
   campaignId: string;
@@ -39,12 +77,13 @@ export interface BulkSendRequest {
 export interface BulkSendResultItem {
   recipientId: string;
   status: "sent" | "failed";
-  resendId?: string;
+  providerMessageId?: string;
   errorMessage?: string;
 }
 
 export interface BulkSendResponse {
   ok: boolean;
+  code?: ApiErrorCode;
   data?: {
     sendJobId: string;
     results: BulkSendResultItem[];

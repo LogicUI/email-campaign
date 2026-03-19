@@ -55,7 +55,7 @@ export function RecipientCardToolbar(props: RecipientCardToolbarProps) {
         disabled={isRegenerating}
       >
         <RefreshCw className={isRegenerating ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-        {isRegenerating ? "Rewriting..." : "Regenerate"}
+        {isRegenerating ? "Generating..." : "Regenerate"}
       </Button>
     </div>
   );

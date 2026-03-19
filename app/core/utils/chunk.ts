@@ -1,4 +1,8 @@
 export function chunk<T>(items: T[], size: number): T[][] {
+  if (items.length === 0) {
+    return [[]];
+  }
+
   if (size <= 0) {
     return [items];
   }

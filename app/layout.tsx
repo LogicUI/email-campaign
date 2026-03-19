@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "EmailAI Prototype",
-  description: "In-memory mass email builder with AI rewrite and Resend delivery.",
+  title: "EmailAI Campaign",
+  description: "Protected email campaign builder with Gmail delivery and configurable AI providers.",
 };
 
 export default function RootLayout({

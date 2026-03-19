@@ -236,6 +236,102 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/updateGlobalTemplate",
         ),
 
+      addManualRecipient: () =>
+        set(
+          (state) => {
+            if (!state.campaign) {
+              return state;
+            }
+
+            const recipientId = createId("recipient");
+            const nextRecipient: CampaignRecipient = {
+              id: recipientId,
+              rowIndex: 0,
+              source: "manual",
+              email: "",
+              subject: mergeTemplate(state.campaign.globalSubject, {}),
+              body: mergeTemplate(state.campaign.globalBodyTemplate, {}),
+              checked: true,
+              sent: false,
+              status: "draft",
+              fields: {},
+              bodySource: "manual",
+              manualEditsSinceGenerate: false,
+              isRegenerating: false,
+              regenerationPhase: "idle",
+              isSending: false,
+            };
+
+            return {
+              recipientsById: {
+                [recipientId]: nextRecipient,
+                ...state.recipientsById,
+              },
+              recipientOrder: [recipientId, ...state.recipientOrder],
+              ui: {
+                ...state.ui,
+                currentPage: 1,
+              },
+            };
+          },
+          false,
+          "campaign/addManualRecipient",
+        ),
+
+      removeRecipient: (id) =>
+        set(
+          (state) => {
+            const existing = state.recipientsById[id];
+
+            if (!existing) {
+              return state;
+            }
+
+            const recipientsById = { ...state.recipientsById };
+            delete recipientsById[id];
+
+            const recipientOrder = state.recipientOrder.filter(
+              (recipientId) => recipientId !== id,
+            );
+            const totalRecipients = recipientOrder.length;
+            const totalPages = Math.max(
+              1,
+              Math.ceil(totalRecipients / state.ui.pageSize),
+            );
+
+            return {
+              recipientsById,
+              recipientOrder,
+              generationLogs: state.generationLogs.filter(
+                (logItem) => logItem.recipientId !== id,
+              ),
+              ui: {
+                ...state.ui,
+                currentPage: Math.min(state.ui.currentPage, totalPages),
+              },
+            };
+          },
+          false,
+          "campaign/removeRecipient",
+        ),
+
+      updateRecipientEmail: (id, email) =>
+        set(
+          (state) => ({
+            recipientsById: {
+              ...state.recipientsById,
+              [id]: {
+                ...state.recipientsById[id],
+                email,
+                bodySource: state.recipientsById[id]?.source === "manual" ? "manual" : state.recipientsById[id]?.bodySource,
+                errorMessage: undefined,
+              },
+            },
+          }),
+          false,
+          "campaign/updateRecipientEmail",
+        ),
+
       updateRecipientBody: (id, body) =>
         set(
           (state) => ({
@@ -323,23 +419,97 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/setPageSize",
         ),
 
-      setRecipientRegenerating: (id, value) =>
+      startRecipientRegeneration: (id) =>
         set(
-          (state) => ({
-            recipientsById: {
-              ...state.recipientsById,
-              [id]: {
-                ...state.recipientsById[id],
-                isRegenerating: value,
-                errorMessage: value ? undefined : state.recipientsById[id]?.errorMessage,
+          (state) => {
+            const existing = state.recipientsById[id];
+
+            if (!existing) {
+              return state;
+            }
+
+            return {
+              recipientsById: {
+                ...state.recipientsById,
+                [id]: {
+                  ...existing,
+                  body: "",
+                  isRegenerating: true,
+                  regenerationPhase: "streaming" as const,
+                  streamOriginalBody: existing.body,
+                  errorMessage: undefined,
+                },
               },
-            },
-          }),
+            };
+          },
           false,
-          "campaign/setRecipientRegenerating",
+          "campaign/startRecipientRegeneration",
         ),
 
-      applyGeneratedBody: ({ id, body, subject, promptVersion = "v1" }) =>
+      appendGeneratedBodyChunk: (id, chunk) =>
+        set(
+          (state) => {
+            const existing = state.recipientsById[id];
+
+            if (!existing) {
+              return state;
+            }
+
+            return {
+              recipientsById: {
+                ...state.recipientsById,
+                [id]: {
+                  ...existing,
+                  body: `${existing.body}${chunk}`,
+                  regenerationPhase: "streaming",
+                },
+              },
+            };
+          },
+          false,
+          "campaign/appendGeneratedBodyChunk",
+        ),
+
+      failRecipientRegeneration: ({ id, errorMessage, promptVersion = "stream-v1" }) =>
+        set(
+          (state) => {
+            const existing = state.recipientsById[id];
+
+            if (!existing) {
+              return state;
+            }
+
+            const restoredBody = existing.streamOriginalBody ?? existing.body;
+            const nextLog: GenerationLogItem = {
+              id: createId("genlog"),
+              recipientId: id,
+              createdAt: new Date().toISOString(),
+              promptVersion,
+              inputBody: existing.streamOriginalBody ?? existing.body,
+              status: "failed",
+              errorMessage,
+            };
+
+            return {
+              recipientsById: {
+                ...state.recipientsById,
+                [id]: {
+                  ...existing,
+                  body: restoredBody,
+                  isRegenerating: false,
+                  regenerationPhase: "idle",
+                  streamOriginalBody: undefined,
+                  errorMessage,
+                },
+              },
+              generationLogs: [nextLog, ...state.generationLogs].slice(0, 50),
+            };
+          },
+          false,
+          "campaign/failRecipientRegeneration",
+        ),
+
+      applyGeneratedBody: ({ id, body, subject, reasoning, promptVersion = "stream-v1" }) =>
         set(
           (state) => {
             const existing = state.recipientsById[id];
@@ -353,7 +523,7 @@ export const useCampaignStore = create<CampaignStore>()(
               recipientId: id,
               createdAt: new Date().toISOString(),
               promptVersion,
-              inputBody: existing.body,
+              inputBody: existing.streamOriginalBody ?? existing.body,
               outputBody: body,
               status: "success",
             };
@@ -368,8 +538,11 @@ export const useCampaignStore = create<CampaignStore>()(
                   bodySource: "ai-generated",
                   lastGeneratedBody: body,
                   lastGenerationAt: new Date().toISOString(),
+                  lastGenerationReasoning: reasoning,
                   manualEditsSinceGenerate: false,
                   isRegenerating: false,
+                  regenerationPhase: "idle",
+                  streamOriginalBody: undefined,
                   errorMessage: undefined,
                 },
               },
@@ -451,7 +624,7 @@ export const useCampaignStore = create<CampaignStore>()(
                 status: sent ? "sent" : "failed",
                 isSending: false,
                 checked: sent ? false : current.checked,
-                lastResendId: result.resendId,
+                lastProviderMessageId: result.providerMessageId,
                 errorMessage: result.errorMessage,
               };
             });

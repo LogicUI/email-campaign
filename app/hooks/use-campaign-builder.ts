@@ -15,6 +15,7 @@ export function useCampaignBuilder() {
     (state) => state.createCampaignFromPreview,
   );
   const updateGlobalTemplate = useCampaignStore((state) => state.updateGlobalTemplate);
+  const addManualRecipient = useCampaignStore((state) => state.addManualRecipient);
   const resetSession = useCampaignStore((state) => state.resetSession);
 
   const canStartCampaign = useMemo(
@@ -31,6 +32,7 @@ export function useCampaignBuilder() {
     closeComposeDialog,
     createCampaignFromPreview,
     updateGlobalTemplate,
+    addManualRecipient,
     resetSession,
   };
 }

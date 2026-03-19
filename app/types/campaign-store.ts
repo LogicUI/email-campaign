@@ -38,6 +38,13 @@ export interface ApplyGeneratedBodyPayload {
   id: string;
   body: string;
   subject?: string;
+  reasoning?: string;
+  promptVersion?: string;
+}
+
+export interface FailRecipientRegenerationPayload {
+  id: string;
+  errorMessage: string;
   promptVersion?: string;
 }
 
@@ -58,13 +65,18 @@ export interface CampaignStoreActions {
   closeComposeDialog: () => void;
   createCampaignFromPreview: (payload: CreateCampaignFromPreviewPayload) => void;
   updateGlobalTemplate: (payload: UpdateGlobalTemplatePayload) => void;
+  addManualRecipient: () => void;
+  removeRecipient: (id: string) => void;
+  updateRecipientEmail: (id: string, email: string) => void;
   updateRecipientBody: (id: string, body: string) => void;
   updateRecipientSubject: (id: string, subject: string) => void;
   toggleRecipientChecked: (id: string, checked?: boolean) => void;
   toggleRecipientsChecked: (ids: string[], checked: boolean) => void;
   setCurrentPage: (page: number) => void;
   setPageSize: (pageSize: number) => void;
-  setRecipientRegenerating: (id: string, value: boolean) => void;
+  startRecipientRegeneration: (id: string) => void;
+  appendGeneratedBodyChunk: (id: string, chunk: string) => void;
+  failRecipientRegeneration: (payload: FailRecipientRegenerationPayload) => void;
   applyGeneratedBody: (payload: ApplyGeneratedBodyPayload) => void;
   markRecipientsQueued: (ids: string[]) => void;
   markRecipientsSending: (ids: string[]) => void;

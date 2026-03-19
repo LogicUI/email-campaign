@@ -1,10 +1,11 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { CampaignBuilderPage } from "@/components/campaign/campaign-builder-page";
 import { parseWorkbookFile } from "@/core/excel/parse-workbook";
+import { useAiSettingsStore } from "@/store/ai-settings-store";
 import { useCampaignStore } from "@/store/campaign-store";
 import type { ImportPreview } from "@/types/campaign";
 
@@ -147,23 +148,116 @@ describe("CampaignBuilderPage", () => {
     expect(screen.getByText("2 checked")).toBeInTheDocument();
   });
 
-  it("regenerates a recipient draft through the mocked AI endpoint", async () => {
+  it("adds a manual recipient card at the top of the list", async () => {
     const user = userEvent.setup();
     seedCampaign();
 
+    render(<CampaignBuilderPage />);
+
+    await user.click(screen.getByRole("button", { name: "New recipient" }));
+
+    const firstRecipientId = useCampaignStore.getState().recipientOrder[0];
+    const firstRecipient = useCampaignStore.getState().recipientsById[firstRecipientId];
+
+    expect(firstRecipient.source).toBe("manual");
+    expect(screen.getByText("Manual")).toBeInTheDocument();
+    const recipientEmailInput = screen.getByLabelText(`Recipient email ${firstRecipientId}`);
+    expect(recipientEmailInput).toBeInTheDocument();
+    await user.type(recipientEmailInput, "manual@example.com");
+    await user.clear(screen.getAllByLabelText("Body")[0]);
+    await user.type(screen.getAllByLabelText("Body")[0], "Manual body copy.");
+
+    await waitFor(() => {
+      const updatedRecipient =
+        useCampaignStore.getState().recipientsById[firstRecipientId];
+      expect(updatedRecipient.email).toBe("manual@example.com");
+      expect(updatedRecipient.body).toBe("Manual body copy.");
+    });
+  });
+
+  it("removes a recipient card from the queue", async () => {
+    const user = userEvent.setup();
+    seedCampaign();
+
+    render(<CampaignBuilderPage />);
+
+    const recipientId = useCampaignStore.getState().recipientOrder[0];
+
+    await user.click(screen.getByRole("button", { name: `Remove recipient ${recipientId}` }));
+
+    await waitFor(() => {
+      expect(useCampaignStore.getState().recipientOrder).toHaveLength(1);
+      expect(useCampaignStore.getState().recipientsById[recipientId]).toBeUndefined();
+      expect(screen.queryByRole("button", { name: `Remove recipient ${recipientId}` })).not.toBeInTheDocument();
+      expect(screen.getByText("1 checked")).toBeInTheDocument();
+    });
+  });
+
+  it("clears all selected recipients from the send queue", async () => {
+    const user = userEvent.setup();
+    seedCampaign();
+
+    render(<CampaignBuilderPage />);
+
+    expect(screen.getByText("2 checked")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear all selected" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("0 checked")).toBeInTheDocument();
+      expect(
+        useCampaignStore
+          .getState()
+          .recipientOrder.every(
+            (recipientId) => !useCampaignStore.getState().recipientsById[recipientId].checked,
+          ),
+      ).toBe(true);
+    });
+  });
+
+  it("shows the sender identity on each card and requests AI regenerate", async () => {
+    const user = userEvent.setup();
+    seedCampaign();
+    useAiSettingsStore.getState().setProviderApiKey("openai", "sk-test-openai");
+    const recipientId = useCampaignStore.getState().recipientOrder[0];
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            `event: start\ndata: {"type":"start","recipientId":"${recipientId}"}\n\n`,
+          ),
+        );
+        controller.enqueue(
+          encoder.encode(
+            `event: body_delta\ndata: {"type":"body_delta","recipientId":"${recipientId}","chunk":"Rewritten outreach "}\n\n`,
+          ),
+        );
+        controller.enqueue(
+          encoder.encode(
+            `event: body_delta\ndata: {"type":"body_delta","recipientId":"${recipientId}","chunk":"body for North Clinic."}\n\n`,
+          ),
+        );
+        controller.enqueue(
+          encoder.encode(
+            `event: final\ndata: {"type":"final","recipientId":"${recipientId}","body":"Rewritten outreach body for North Clinic."}\n\n`,
+          ),
+        );
+        controller.close();
+      },
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: stream,
+      headers: new Headers({
+        "Content-Type": "text/event-stream; charset=utf-8",
+      }),
+    });
+
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          ok: true,
-          data: {
-            recipientId: "recipient_mocked",
-            subject: "Refined intro for North Clinic",
-            body: "Rewritten outreach body for North Clinic.",
-          },
-        }),
-      }),
+      fetchMock,
     );
 
     render(<CampaignBuilderPage />);
@@ -171,11 +265,13 @@ describe("CampaignBuilderPage", () => {
     await user.click(screen.getAllByRole("button", { name: "Regenerate" })[0]);
 
     await waitFor(() => {
-      expect(screen.getAllByLabelText("Subject")[0]).toHaveValue(
-        "Refined intro for North Clinic",
-      );
-      expect(screen.getAllByLabelText("Body")[0]).toHaveValue(
-        "Rewritten outreach body for North Clinic.",
+      expect(screen.getAllByText("From")).toHaveLength(2);
+      expect(screen.getAllByText("authenticated@example.com")).toHaveLength(3);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/ai/regenerate",
+        expect.objectContaining({
+          method: "POST",
+        }),
       );
     });
   });
@@ -196,7 +292,7 @@ describe("CampaignBuilderPage", () => {
               {
                 recipientId: useCampaignStore.getState().recipientOrder[0],
                 status: "sent",
-                resendId: "resend_mocked_1",
+                providerMessageId: "gmail_mocked_1",
               },
               {
                 recipientId: useCampaignStore.getState().recipientOrder[1],
