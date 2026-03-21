@@ -1,31 +1,25 @@
-import { NextResponse } from "next/server";
-
-import { requireAppUser } from "@/api/_lib/app-user";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { AuthenticationError, NotFoundError } from "@/core/errors/error-classes";
 import { getCampaignHistoryById } from "@/core/persistence/campaign-history-repo";
 
-export async function GET(_: Request, context: { params: { id: string } }) {
+export const GET = withApiHandler(async (
+  _request: Request,
+  context: { params: { id: string } }
+) => {
   const auth = await requireAppUser();
 
   if ("response" in auth) {
-    return auth.response;
+    throw new AuthenticationError("Authentication required");
   }
 
   const campaign = await getCampaignHistoryById(auth.userId, context.params.id);
 
   if (!campaign) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Campaign not found.",
-      },
-      { status: 404 },
-    );
+    throw new NotFoundError("Campaign");
   }
 
-  return NextResponse.json({
-    ok: true,
-    data: {
-      campaign,
-    },
+  return successResponse({
+    campaign,
   });
-}
+});

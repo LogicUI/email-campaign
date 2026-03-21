@@ -1,7 +1,5 @@
-import { NextResponse } from "next/server";
-import { ZodError } from "zod";
-
-import { requireAppUser } from "@/api/_lib/app-user";
+import { successResponse, withApiHandler } from "@/api/_lib/api-response";
+import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
 import {
   buildSuggestedMappings,
   describePostgresTable,
@@ -9,45 +7,32 @@ import {
 import { getZodErrorMessage } from "@/zodSchemas/api";
 import { describeDatabaseTableRequestSchema } from "@/zodSchemas/database";
 
-export async function POST(request: Request) {
+export const POST = withApiHandler(async (request: Request) => {
   const auth = await requireAppUser();
 
   if ("response" in auth) {
-    return auth.response;
+    throw new AuthenticationError("Authentication required");
   }
 
-  try {
-    const body = describeDatabaseTableRequestSchema.parse(await request.json());
-    const schema = await describePostgresTable({
-      connection: body.connection,
-      schema: body.table.schema,
-      table: body.table.name,
-    });
+  const body = await request.json();
+  const parsedPayload = describeDatabaseTableRequestSchema.safeParse(body);
 
-    return NextResponse.json({
-      ok: true,
-      data: {
-        schema,
-        suggestedMappings: buildSuggestedMappings({
-          headers: [],
-          schema,
-        }),
-      },
-    });
-  } catch (error) {
-    const message =
-      error instanceof ZodError
-        ? getZodErrorMessage(error)
-        : error instanceof Error
-          ? error.message
-          : "Unable to load table schema.";
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: message,
-      },
-      { status: 400 },
-    );
+  if (!parsedPayload.success) {
+    throw new ValidationError(getZodErrorMessage(parsedPayload.error));
   }
-}
+
+  const data = parsedPayload.data;
+  const schema = await describePostgresTable({
+    connection: data.connection,
+    schema: data.table.schema,
+    table: data.table.name,
+  });
+
+  return successResponse({
+    schema,
+    suggestedMappings: buildSuggestedMappings({
+      headers: [],
+      schema,
+    }),
+  });
+});

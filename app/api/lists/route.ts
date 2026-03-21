@@ -1,21 +1,18 @@
-import { NextResponse } from "next/server";
-
-import { requireAppUser } from "@/api/_lib/app-user";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { AuthenticationError } from "@/core/errors/error-classes";
 import { listSavedListsForUser } from "@/core/persistence/saved-lists-repo";
 
-export async function GET() {
+export const GET = withApiHandler(async () => {
   const auth = await requireAppUser();
 
   if ("response" in auth) {
-    return auth.response;
+    throw new AuthenticationError("Authentication required");
   }
 
   const savedLists = await listSavedListsForUser(auth.userId);
 
-  return NextResponse.json({
-    ok: true,
-    data: {
-      savedLists,
-    },
+  return successResponse({
+    savedLists,
   });
-}
+});

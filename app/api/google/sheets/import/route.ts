@@ -1,57 +1,47 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ZodError } from "zod";
+import { NextRequest } from "next/server";
 
+import { successResponse, withApiHandler } from "@/api/_lib/api-response";
+import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
 import { createAuthErrorResponse, getAuthToken, requireApiSession } from "@/api/_lib/api-auth";
 import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/google-access-token";
 import { importGoogleWorksheetAsPreview } from "@/core/integrations/google-sheets-client";
-import type { GoogleSheetImportResponseData } from "@/types/google";
 import { getZodErrorMessage } from "@/zodSchemas/api";
 import { importGoogleSheetRequestSchema } from "@/zodSchemas/google";
 
-export async function POST(request: NextRequest) {
+export const POST = withApiHandler(async (request: NextRequest) => {
+  const auth = await requireApiSession();
+
+  if ("response" in auth) {
+    throw new AuthenticationError("Authentication required");
+  }
+
+  const body = await request.json();
+  const parsedPayload = importGoogleSheetRequestSchema.safeParse(body);
+
+  if (!parsedPayload.success) {
+    throw new ValidationError(getZodErrorMessage(parsedPayload.error));
+  }
+
+  const payload = parsedPayload.data;
+  const authToken = await getAuthToken(request);
+
+  let accessToken: string;
   try {
-    const auth = await requireApiSession();
-
-    if ("response" in auth) {
-      return auth.response;
-    }
-
-    const body = importGoogleSheetRequestSchema.parse(await request.json());
-    const authToken = await getAuthToken(request);
-    const accessToken = await getValidGoogleAccessToken(authToken);
-    const payload = await importGoogleWorksheetAsPreview({
-      accessToken,
-      spreadsheetId: body.spreadsheetId,
-      worksheetTitle: body.worksheetTitle,
-    });
-
-    return NextResponse.json<{
-      ok: true;
-      data: GoogleSheetImportResponseData;
-    }>({
-      ok: true,
-      data: {
-        preview: payload.preview,
-      },
-    });
+    accessToken = await getValidGoogleAccessToken(authToken);
   } catch (error) {
     if (error instanceof ReauthRequiredError) {
-      return createAuthErrorResponse(error.code);
+      throw new AuthenticationError("Google access expired. Sign in again to continue.");
     }
-
-    const message =
-      error instanceof ZodError
-        ? getZodErrorMessage(error)
-        : error instanceof Error
-          ? error.message
-          : "Unable to import the selected Google Sheet.";
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: message,
-      },
-      { status: 400 },
-    );
+    throw error;
   }
-}
+
+  const result = await importGoogleWorksheetAsPreview({
+    accessToken,
+    spreadsheetId: payload.spreadsheetId,
+    worksheetTitle: payload.worksheetTitle,
+  });
+
+  return successResponse({
+    preview: result.preview,
+  });
+});

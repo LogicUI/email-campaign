@@ -1,59 +1,36 @@
-import { NextResponse } from "next/server";
-import { ZodError } from "zod";
-
-import { requireAppUser } from "@/api/_lib/app-user";
+import { successResponse, withApiHandler } from "@/api/_lib/api-response";
+import { AuthenticationError, NotFoundError, ValidationError } from "@/core/errors/error-classes";
 import { updateConnectionProfileSyncMode } from "@/core/persistence/connection-profiles-repo";
 import { getZodErrorMessage } from "@/zodSchemas/api";
 import { updateConnectionProfileRequestSchema } from "@/zodSchemas/database";
 
-export async function PATCH(
-  request: Request,
-  context: { params: { id: string } },
-) {
-  const auth = await requireAppUser();
+export const PATCH = withApiHandler(
+  async (request: Request, context: { params: { id: string } }) => {
+    const auth = await requireAppUser();
 
-  if ("response" in auth) {
-    return auth.response;
-  }
+    if ("response" in auth) {
+      throw new AuthenticationError("Authentication required");
+    }
 
-  try {
-    const body = updateConnectionProfileRequestSchema.parse(await request.json());
+    const body = await request.json();
+    const parsedPayload = updateConnectionProfileRequestSchema.safeParse(body);
+
+    if (!parsedPayload.success) {
+      throw new ValidationError(getZodErrorMessage(parsedPayload.error));
+    }
+
     const connectionProfile = await updateConnectionProfileSyncMode({
       profileId: context.params.id,
       userId: auth.userId,
-      syncMode: body.syncMode,
+      syncMode: parsedPayload.data.syncMode,
     });
 
     if (!connectionProfile) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Connection profile not found.",
-        },
-        { status: 404 },
-      );
+      throw new NotFoundError("Connection profile");
     }
 
-    return NextResponse.json({
-      ok: true,
-      data: {
-        connectionProfile,
-      },
+    return successResponse({
+      connectionProfile,
     });
-  } catch (error) {
-    const message =
-      error instanceof ZodError
-        ? getZodErrorMessage(error)
-        : error instanceof Error
-          ? error.message
-          : "Unable to update connection profile.";
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: message,
-      },
-      { status: 400 },
-    );
   }
-}
+);

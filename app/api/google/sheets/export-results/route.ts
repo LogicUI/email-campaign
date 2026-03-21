@@ -1,59 +1,49 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ZodError } from "zod";
+import { NextRequest } from "next/server";
 
+import { successResponse, withApiHandler } from "@/api/_lib/api-response";
+import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
 import { createAuthErrorResponse, getAuthToken, requireApiSession } from "@/api/_lib/api-auth";
 import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/google-access-token";
 import { appendCampaignResultsToGoogleSheet } from "@/core/integrations/google-sheets-client";
-import type { GoogleSheetExportResponseData } from "@/types/google";
 import { getZodErrorMessage } from "@/zodSchemas/api";
 import { exportGoogleSheetResultsRequestSchema } from "@/zodSchemas/google";
 
-export async function POST(request: NextRequest) {
+export const POST = withApiHandler(async (request: NextRequest) => {
+  const auth = await requireApiSession();
+
+  if ("response" in auth) {
+    throw new AuthenticationError("Authentication required");
+  }
+
+  const body = await request.json();
+  const parsedPayload = exportGoogleSheetResultsRequestSchema.safeParse(body);
+
+  if (!parsedPayload.success) {
+    throw new ValidationError(getZodErrorMessage(parsedPayload.error));
+  }
+
+  const payload = parsedPayload.data;
+  const authToken = await getAuthToken(request);
+
+  let accessToken: string;
   try {
-    const auth = await requireApiSession();
-
-    if ("response" in auth) {
-      return auth.response;
-    }
-
-    const body = exportGoogleSheetResultsRequestSchema.parse(await request.json());
-    const authToken = await getAuthToken(request);
-    const accessToken = await getValidGoogleAccessToken(authToken);
-    const payload = await appendCampaignResultsToGoogleSheet({
-      accessToken,
-      spreadsheetId: body.spreadsheetId,
-      worksheetTitle: body.worksheetTitle?.trim() || "EmailAI Results",
-      campaignName: body.campaignName,
-      senderEmail: body.senderEmail,
-      globalSubject: body.globalSubject,
-      recipients: body.recipients,
-    });
-
-    return NextResponse.json<{
-      ok: true;
-      data: GoogleSheetExportResponseData;
-    }>({
-      ok: true,
-      data: payload,
-    });
+    accessToken = await getValidGoogleAccessToken(authToken);
   } catch (error) {
     if (error instanceof ReauthRequiredError) {
-      return createAuthErrorResponse(error.code);
+      throw new AuthenticationError("Google access expired. Sign in again to continue.");
     }
-
-    const message =
-      error instanceof ZodError
-        ? getZodErrorMessage(error)
-        : error instanceof Error
-          ? error.message
-          : "Unable to save campaign results to Google Sheets.";
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: message,
-      },
-      { status: 400 },
-    );
+    throw error;
   }
-}
+
+  const result = await appendCampaignResultsToGoogleSheet({
+    accessToken,
+    spreadsheetId: payload.spreadsheetId,
+    worksheetTitle: payload.worksheetTitle?.trim() || "EmailAI Results",
+    campaignName: payload.campaignName,
+    senderEmail: payload.senderEmail,
+    globalSubject: payload.globalSubject,
+    recipients: payload.recipients,
+  });
+
+  return successResponse(result);
+});

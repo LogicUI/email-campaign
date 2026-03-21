@@ -1,63 +1,48 @@
-import { NextResponse } from "next/server";
-import { ZodError } from "zod";
-
-import { requireApiSession } from "@/api/_lib/api-auth";
+import { successResponse, withApiHandler } from "@/api/_lib/api-response";
+import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
 import { fetchRowsFromPostgresTable } from "@/core/database/postgres-connector";
 import { buildImportPreview } from "@/core/excel/build-import-preview";
 import { getZodErrorMessage } from "@/zodSchemas/api";
 import { describeDatabaseTableRequestSchema } from "@/zodSchemas/database";
 
-export async function POST(request: Request) {
+export const POST = withApiHandler(async (request: Request) => {
   const auth = await requireApiSession();
 
   if ("response" in auth) {
-    return auth.response;
+    throw new AuthenticationError("Authentication required");
   }
 
-  try {
-    const body = describeDatabaseTableRequestSchema.parse(await request.json());
-    const rows = await fetchRowsFromPostgresTable({
-      connection: body.connection,
-      schema: body.table.schema,
-      table: body.table.name,
-    });
+  const body = await request.json();
+  const parsedPayload = describeDatabaseTableRequestSchema.safeParse(body);
 
-    const preview = buildImportPreview({
-      sourceType: "database_table",
-      databaseConnectionLabel: body.connection.label,
-      databaseTableName: body.table.displayName,
-      sourceFiles: [
-        {
-          fileName: body.table.displayName,
-        },
-      ],
-      sourceRows: rows.map((row, index) => ({
-        raw: row,
-        sourceFileName: body.table.displayName,
-        originalRowIndex: index + 1,
-      })),
-    });
+  if (!parsedPayload.success) {
+    throw new ValidationError(getZodErrorMessage(parsedPayload.error));
+  }
 
-    return NextResponse.json({
-      ok: true,
-      data: {
-        preview,
-      },
-    });
-  } catch (error) {
-    const message =
-      error instanceof ZodError
-        ? getZodErrorMessage(error)
-        : error instanceof Error
-          ? error.message
-          : "Unable to import rows from the selected database table.";
+  const data = parsedPayload.data;
+  const rows = await fetchRowsFromPostgresTable({
+    connection: data.connection,
+    schema: data.table.schema,
+    table: data.table.name,
+  });
 
-    return NextResponse.json(
+  const preview = buildImportPreview({
+    sourceType: "database_table",
+    databaseConnectionLabel: data.connection.label,
+    databaseTableName: data.table.displayName,
+    sourceFiles: [
       {
-        ok: false,
-        error: message,
+        fileName: data.table.displayName,
       },
-      { status: 400 },
-    );
-  }
-}
+    ],
+    sourceRows: rows.map((row, index) => ({
+      raw: row,
+      sourceFileName: data.table.displayName,
+      originalRowIndex: index + 1,
+    })),
+  });
+
+  return successResponse({
+    preview,
+  });
+});
