@@ -21,10 +21,26 @@ export class ReauthRequiredError extends Error {
   }
 }
 
+/**
+ * Checks whether a Google access token should be treated as expired.
+ *
+ * We refresh slightly before the actual expiry time to reduce the chance of a send
+ * request failing mid-flight because the token expired during processing.
+ *
+ * @param expiresAt Epoch milliseconds when the token expires.
+ * @returns `true` when the token is missing or within the refresh buffer window.
+ */
 function isExpired(expiresAt?: number) {
   return !expiresAt || Date.now() >= expiresAt - TOKEN_REFRESH_BUFFER_MS;
 }
 
+/**
+ * Exchanges a Google refresh token for a fresh access token.
+ *
+ * @param refreshToken OAuth refresh token from the NextAuth JWT.
+ * @returns Refreshed Google token payload needed for Gmail API calls.
+ * @throws ReauthRequiredError when Google rejects the refresh request.
+ */
 async function refreshGoogleAccessToken(refreshToken: string) {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -52,6 +68,16 @@ async function refreshGoogleAccessToken(refreshToken: string) {
   };
 }
 
+/**
+ * Returns a valid Google access token for Gmail API calls.
+ *
+ * This is the main token gate for send routes. It uses the cached access token when
+ * still valid and falls back to a refresh flow when the JWT holds a refresh token.
+ *
+ * @param token NextAuth JWT that may contain access and refresh tokens.
+ * @returns Non-expired Google access token.
+ * @throws ReauthRequiredError when the user must sign in again.
+ */
 export async function getValidGoogleAccessToken(token: JWT | null) {
   if (!token?.accessToken) {
     throw new ReauthRequiredError();

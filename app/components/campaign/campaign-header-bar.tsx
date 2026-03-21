@@ -1,26 +1,19 @@
-import { FileText, Mail, RotateCcw } from "lucide-react";
+import { Mail } from "lucide-react";
 
-import {
-  AiSettingsStatusPill,
-  AiSettingsTrigger,
-} from "@/components/settings/ai-settings-trigger";
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { AiSettingsStatusPill } from "@/components/settings/ai-settings-trigger";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { CampaignHeaderBarProps } from "@/types/campaign-header-bar";
 
 export function CampaignHeaderBar(props: CampaignHeaderBarProps) {
-  const { campaign, onEditTemplate, onReset, senderEmail, totalRecipients } = props;
+  const { campaign, senderEmail, totalRecipients } = props;
 
   return (
     <Card className="bg-white/85">
-      <CardContent className="flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between">
+      <CardContent className="flex flex-col gap-4 p-6">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{campaign.importedFileName}</Badge>
-            <Badge variant="outline">{totalRecipients} recipient drafts</Badge>
-            <Badge variant="success">{campaign.validRows} valid rows</Badge>
             <AiSettingsStatusPill />
           </div>
           <div>
@@ -34,18 +27,6 @@ export function CampaignHeaderBar(props: CampaignHeaderBarProps) {
             <Mail className="h-4 w-4" />
             <span className="truncate">{senderEmail}</span>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <AiSettingsTrigger context="header" />
-          <Button variant="outline" onClick={onEditTemplate}>
-            <FileText className="h-4 w-4" />
-            Edit global message
-          </Button>
-          <Button variant="secondary" onClick={onReset}>
-            <RotateCcw className="h-4 w-4" />
-            Reset session
-          </Button>
-          <SignOutButton />
         </div>
       </CardContent>
     </Card>

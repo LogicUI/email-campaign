@@ -4,11 +4,26 @@ import { useCallback, useMemo, useState } from "react";
 
 import { validateRecipient } from "@/core/campaign/validate-recipient";
 import { createId } from "@/core/utils/ids";
+import { useCampaignSync } from "@/hooks/use-campaign-sync";
 import { useCampaignStore } from "@/store/campaign-store";
 import { selectCampaign, selectRecipientOrder, selectUi } from "@/store/selectors";
-import type { BulkSendResponse, SendPayloadRecipient } from "@/types/api";
+import { useSendBulkMutation } from "@/tanStack/send";
+import type { SendPayloadRecipient } from "@/types/api";
 
-export function useBulkSend() {
+/**
+ * Coordinates the bulk-send workflow for the current workspace.
+ *
+ * The hook is responsible for selecting valid checked recipients, calling the Gmail
+ * bulk-send API, updating recipient statuses in the store, and then deciding whether
+ * campaign history should be synced automatically or left pending for manual sync.
+ *
+ * @param options.onSavedDataChange Optional callback used after auto-sync succeeds so
+ * surrounding dashboard data can refresh.
+ * @returns Send actions, summary counts, progress state, and any send error message.
+ */
+export function useBulkSend(options?: {
+  onSavedDataChange?: () => Promise<unknown> | void;
+}) {
   const campaign = useCampaignStore(selectCampaign);
   const recipientOrder = useCampaignStore(selectRecipientOrder);
   const recipientsById = useCampaignStore((state) => state.recipientsById);
@@ -16,9 +31,12 @@ export function useBulkSend() {
   const markRecipientsQueued = useCampaignStore((state) => state.markRecipientsQueued);
   const markRecipientsSending = useCampaignStore((state) => state.markRecipientsSending);
   const applySendResults = useCampaignStore((state) => state.applySendResults);
+  const markDatabaseSyncPending = useCampaignStore((state) => state.markDatabaseSyncPending);
   const toggleRecipientsChecked = useCampaignStore((state) => state.toggleRecipientsChecked);
   const setSending = useCampaignStore((state) => state.setSending);
-  const [error, setError] = useState<string | null>(null);
+  const { activeConnection, syncCurrentCampaign } = useCampaignSync(options);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const sendBulkMutation = useSendBulkMutation();
 
   const checkedUnsentIds = useMemo(
     () =>
@@ -35,6 +53,16 @@ export function useBulkSend() {
     [recipientOrder, recipientsById],
   );
 
+  /**
+   * Sends all currently checked and valid recipients through the bulk-send API.
+   *
+   * This is the main send entry point used by the campaign UI. It validates that the
+   * selected recipients are sendable, updates optimistic sending state, applies final
+   * API results back into the store, and then either auto-syncs campaign history or
+   * flags the campaign as needing manual sync.
+   *
+   * @returns Promise that resolves once send handling and optional auto-sync finish.
+   */
   const sendSelected = useCallback(async () => {
     if (!campaign) {
       return;
@@ -46,7 +74,7 @@ export function useBulkSend() {
     });
 
     if (eligibleIds.length === 0) {
-      setError("No valid checked recipients are ready to send.");
+      setValidationError("No valid checked recipients are ready to send.");
       return;
     }
 
@@ -60,31 +88,28 @@ export function useBulkSend() {
       };
     });
 
-    setError(null);
+    setValidationError(null);
     setSending(true);
     markRecipientsQueued(eligibleIds);
     markRecipientsSending(eligibleIds);
 
     try {
-      const response = await fetch("/api/send/bulk", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          campaignId: campaign.id,
-          sendJobId: createId("sendjob"),
-          recipients: payloadRecipients,
-        }),
+      const data = await sendBulkMutation.mutateAsync({
+        campaignId: campaign.id,
+        sendJobId: createId("sendjob"),
+        recipients: payloadRecipients,
       });
 
-      const data = (await response.json()) as BulkSendResponse;
+      applySendResults(data.results);
 
-      if (!response.ok || !data.ok || !data.data) {
-        throw new Error(data.error ?? "Bulk send failed.");
+      if (activeConnection?.syncMode === "auto" && activeConnection.profileId) {
+        await syncCurrentCampaign({
+          sentAt: new Date().toISOString(),
+          silentWhenDisconnected: true,
+        });
+      } else {
+        markDatabaseSyncPending();
       }
-
-      applySendResults(data.data.results);
     } catch (caughtError) {
       const message =
         caughtError instanceof Error ? caughtError.message : "Bulk send failed.";
@@ -96,7 +121,6 @@ export function useBulkSend() {
           errorMessage: message,
         })),
       );
-      setError(message);
     }
   }, [
     applySendResults,
@@ -104,10 +128,19 @@ export function useBulkSend() {
     checkedUnsentIds,
     markRecipientsQueued,
     markRecipientsSending,
+    activeConnection,
+    markDatabaseSyncPending,
     recipientsById,
     setSending,
+    sendBulkMutation,
+    syncCurrentCampaign,
   ]);
 
+  /**
+   * Re-checks all failed recipients so the user can quickly retry them.
+   *
+   * This exists as a convenience action for the send summary bar.
+   */
   const retryFailed = useCallback(() => {
     if (failedIds.length === 0) {
       return;
@@ -128,7 +161,9 @@ export function useBulkSend() {
 
   return {
     ...summary,
-    error,
+    error:
+      validationError ??
+      (sendBulkMutation.error instanceof Error ? sendBulkMutation.error.message : null),
     sendSelected,
     retryFailed,
   };

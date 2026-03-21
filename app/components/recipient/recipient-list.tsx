@@ -1,11 +1,15 @@
 import { RecipientEmailCard } from "@/components/recipient/recipient-email-card";
 import type { RecipientListProps } from "@/types/recipient-list";
 
-export function RecipientList({ recipientIds, senderEmail }: RecipientListProps) {
+export function RecipientList({
+  emptyStateMessage = "No recipients available in this view.",
+  recipientIds,
+  senderEmail,
+}: RecipientListProps) {
   if (recipientIds.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-        No recipients available on this page.
+        {emptyStateMessage}
       </div>
     );
   }

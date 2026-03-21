@@ -1,10 +1,11 @@
 "use client";
 
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
+import { createJSONStorage, devtools, persist } from "zustand/middleware";
 
 import { buildRecipientDraft } from "@/core/campaign/build-recipient-draft";
 import { mergeTemplate } from "@/core/campaign/merge-template";
+import { buildImportPreview } from "@/core/excel/build-import-preview";
 import { createId } from "@/core/utils/ids";
 import type {
   CampaignStore,
@@ -22,8 +23,11 @@ const initialUiState: CampaignStoreUiState = {
   composeDialogOpen: false,
   currentPage: 1,
   pageSize: 12,
+  recipientStatusView: "unsent",
   isImporting: false,
   isSending: false,
+  isDatabaseSyncing: false,
+  needsDatabaseSync: false,
   sendProgress: {
     total: 0,
     completed: 0,
@@ -32,9 +36,25 @@ const initialUiState: CampaignStoreUiState = {
   },
 };
 
+function rebuildImportPreview(
+  preview: ImportPreview,
+  params: {
+    emailColumn?: string;
+    recipientColumn?: string;
+  },
+) {
+  return buildImportPreview({
+    preferredEmailColumn: params.emailColumn || undefined,
+    preferredRecipientColumn: params.recipientColumn || undefined,
+    savedListId: preview.savedListId,
+    sourceFiles: preview.sourceFiles,
+    sourceRows: preview.sourceRows,
+  });
+}
+
 export const useCampaignStore = create<CampaignStore>()(
-  devtools(
-    (set, get) => ({
+  persist(
+    devtools((set, get) => ({
       campaign: null,
       importPreview: null,
       recipientsById: {},
@@ -63,6 +83,22 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/setImportPreview",
         ),
 
+      hydrateImportPreview: (preview) =>
+        set(
+          {
+            campaign: null,
+            importPreview: preview,
+            recipientsById: {},
+            recipientOrder: [],
+            generationLogs: [],
+            ui: {
+              ...initialUiState,
+            },
+          },
+          false,
+          "campaign/hydrateImportPreview",
+        ),
+
       setSelectedEmailColumn: (column) =>
         set(
           (state) => {
@@ -70,57 +106,39 @@ export const useCampaignStore = create<CampaignStore>()(
               return state;
             }
 
-            const updatedRows = state.importPreview.rows.map((row) => {
-              const normalizedEmail = String(row.raw[column] ?? "")
-                .trim()
-                .toLowerCase();
-
-              if (!normalizedEmail) {
-                return {
-                  ...row,
-                  email: undefined,
-                  isValid: false,
-                  invalidReason: "Missing email.",
-                };
-              }
-
-              const duplicate = state.importPreview?.rows.some(
-                (candidate) =>
-                  candidate.tempId !== row.tempId &&
-                  String(candidate.raw[column] ?? "").trim().toLowerCase() === normalizedEmail,
-              );
-
-              if (duplicate) {
-                return {
-                  ...row,
-                  email: normalizedEmail,
-                  isValid: false,
-                  invalidReason: "Duplicate email in upload.",
-                };
-              }
-
-              const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(normalizedEmail);
-
-              return {
-                ...row,
-                email: normalizedEmail,
-                isValid: valid,
-                invalidReason: valid ? undefined : "Invalid email format.",
-              };
-            });
-
             return {
-              importPreview: {
-                ...state.importPreview,
-                selectedEmailColumn: column,
-                rows: updatedRows,
-                validCount: updatedRows.filter((row) => row.isValid).length,
-                invalidCount: updatedRows.filter((row) => !row.isValid).length,
-              },
+              importPreview: rebuildImportPreview(state.importPreview, {
+                emailColumn: column,
+                recipientColumn:
+                  state.importPreview.selectedRecipientColumn === column
+                    ? undefined
+                    : state.importPreview.selectedRecipientColumn,
+              }),
             };
           },
           false,
           "campaign/setSelectedEmailColumn",
+        ),
+
+      setSelectedRecipientColumn: (column) =>
+        set(
+          (state) => {
+            if (!state.importPreview) {
+              return state;
+            }
+
+            return {
+              importPreview: rebuildImportPreview(state.importPreview, {
+                emailColumn: state.importPreview.selectedEmailColumn,
+                recipientColumn:
+                  column && column !== state.importPreview.selectedEmailColumn
+                    ? column
+                    : undefined,
+              }),
+            };
+          },
+          false,
+          "campaign/setSelectedRecipientColumn",
         ),
 
       openComposeDialog: () =>
@@ -147,7 +165,7 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/closeComposeDialog",
         ),
 
-      createCampaignFromPreview: ({ name, globalSubject, globalBodyTemplate }) => {
+      createCampaignFromPreview: ({ name, globalSubject, globalBodyTemplate, sourceType, savedListId }) => {
         const preview = get().importPreview;
 
         if (!preview) {
@@ -171,9 +189,12 @@ export const useCampaignStore = create<CampaignStore>()(
               globalSubject,
               globalBodyTemplate,
               createdAt: new Date().toISOString(),
+              sourceType: sourceType ?? (savedListId || preview.savedListId ? "uploaded_list" : "manual"),
+              savedListId: savedListId ?? preview.savedListId,
               importedFileName: preview.fileName ?? "upload",
               importedSheetName: preview.sheetName,
               detectedEmailColumn: preview.selectedEmailColumn,
+              detectedRecipientColumn: preview.selectedRecipientColumn,
               totalRows: preview.rows.length,
               validRows: validRows.length,
               invalidRows: preview.rows.length - validRows.length,
@@ -186,6 +207,10 @@ export const useCampaignStore = create<CampaignStore>()(
               ...get().ui,
               composeDialogOpen: false,
               currentPage: 1,
+              needsDatabaseSync: false,
+              isDatabaseSyncing: false,
+              lastDatabaseSyncAt: undefined,
+              lastDatabaseSyncError: undefined,
             },
           },
           false,
@@ -230,6 +255,11 @@ export const useCampaignStore = create<CampaignStore>()(
                 globalBodyTemplate,
               },
               recipientsById,
+              ui: {
+                ...state.ui,
+                needsDatabaseSync: true,
+                lastDatabaseSyncError: undefined,
+              },
             };
           },
           false,
@@ -271,6 +301,8 @@ export const useCampaignStore = create<CampaignStore>()(
               ui: {
                 ...state.ui,
                 currentPage: 1,
+                needsDatabaseSync: true,
+                lastDatabaseSyncError: undefined,
               },
             };
           },
@@ -308,6 +340,8 @@ export const useCampaignStore = create<CampaignStore>()(
               ui: {
                 ...state.ui,
                 currentPage: Math.min(state.ui.currentPage, totalPages),
+                needsDatabaseSync: true,
+                lastDatabaseSyncError: undefined,
               },
             };
           },
@@ -327,6 +361,11 @@ export const useCampaignStore = create<CampaignStore>()(
                 errorMessage: undefined,
               },
             },
+            ui: {
+              ...state.ui,
+              needsDatabaseSync: true,
+              lastDatabaseSyncError: undefined,
+            },
           }),
           false,
           "campaign/updateRecipientEmail",
@@ -344,6 +383,11 @@ export const useCampaignStore = create<CampaignStore>()(
                 manualEditsSinceGenerate: true,
               },
             },
+            ui: {
+              ...state.ui,
+              needsDatabaseSync: true,
+              lastDatabaseSyncError: undefined,
+            },
           }),
           false,
           "campaign/updateRecipientBody",
@@ -358,6 +402,11 @@ export const useCampaignStore = create<CampaignStore>()(
                 ...state.recipientsById[id],
                 subject,
               },
+            },
+            ui: {
+              ...state.ui,
+              needsDatabaseSync: true,
+              lastDatabaseSyncError: undefined,
             },
           }),
           false,
@@ -417,6 +466,19 @@ export const useCampaignStore = create<CampaignStore>()(
           }),
           false,
           "campaign/setPageSize",
+        ),
+
+      setRecipientStatusView: (view) =>
+        set(
+          (state) => ({
+            ui: {
+              ...state.ui,
+              recipientStatusView: view,
+              currentPage: 1,
+            },
+          }),
+          false,
+          "campaign/setRecipientStatusView",
         ),
 
       startRecipientRegeneration: (id) =>
@@ -503,6 +565,11 @@ export const useCampaignStore = create<CampaignStore>()(
                 },
               },
               generationLogs: [nextLog, ...state.generationLogs].slice(0, 50),
+              ui: {
+                ...state.ui,
+                needsDatabaseSync: true,
+                lastDatabaseSyncError: undefined,
+              },
             };
           },
           false,
@@ -547,6 +614,11 @@ export const useCampaignStore = create<CampaignStore>()(
                 },
               },
               generationLogs: [nextLog, ...state.generationLogs].slice(0, 50),
+              ui: {
+                ...state.ui,
+                needsDatabaseSync: true,
+                lastDatabaseSyncError: undefined,
+              },
             };
           },
           false,
@@ -634,6 +706,8 @@ export const useCampaignStore = create<CampaignStore>()(
               ui: {
                 ...state.ui,
                 isSending: false,
+                needsDatabaseSync: true,
+                lastDatabaseSyncError: undefined,
                 sendProgress: {
                   total: state.ui.sendProgress.total,
                   completed: results.length,
@@ -659,6 +733,78 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/setSending",
         ),
 
+      markDatabaseSyncPending: () =>
+        set(
+          (state) => ({
+            ui: {
+              ...state.ui,
+              needsDatabaseSync: true,
+            },
+          }),
+          false,
+          "campaign/markDatabaseSyncPending",
+        ),
+
+      markDatabaseSyncStarted: () =>
+        set(
+          (state) => ({
+            ui: {
+              ...state.ui,
+              isDatabaseSyncing: true,
+              lastDatabaseSyncError: undefined,
+            },
+          }),
+          false,
+          "campaign/markDatabaseSyncStarted",
+        ),
+
+      markDatabaseSyncSucceeded: (syncedAt) =>
+        set(
+          (state) => ({
+            ui: {
+              ...state.ui,
+              isDatabaseSyncing: false,
+              needsDatabaseSync: false,
+              lastDatabaseSyncAt: syncedAt,
+              lastDatabaseSyncError: undefined,
+            },
+          }),
+          false,
+          "campaign/markDatabaseSyncSucceeded",
+        ),
+
+      markDatabaseSyncFailed: (errorMessage) =>
+        set(
+          (state) => ({
+            ui: {
+              ...state.ui,
+              isDatabaseSyncing: false,
+              needsDatabaseSync: true,
+              lastDatabaseSyncError: errorMessage,
+            },
+          }),
+          false,
+          "campaign/markDatabaseSyncFailed",
+        ),
+
+      restoreCampaignFromHistory: ({ campaign, recipients }) =>
+        set(
+          {
+            campaign,
+            importPreview: null,
+            recipientsById: Object.fromEntries(
+              recipients.map((recipient) => [recipient.id, recipient]),
+            ),
+            recipientOrder: recipients.map((recipient) => recipient.id),
+            generationLogs: [],
+            ui: {
+              ...initialUiState,
+            },
+          },
+          false,
+          "campaign/restoreCampaignFromHistory",
+        ),
+
       resetSession: () =>
         set(
           {
@@ -673,6 +819,38 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/resetSession",
         ),
     }),
-    { name: "campaign-store" },
+    { name: "campaign-store" }),
+    {
+      name: "campaign-browser-storage",
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      partialize: (state) => ({
+        campaign: state.campaign,
+        importPreview: state.importPreview,
+        recipientsById: state.recipientsById,
+        recipientOrder: state.recipientOrder,
+        generationLogs: state.generationLogs,
+        ui: {
+          currentPage: state.ui.currentPage,
+          pageSize: state.ui.pageSize,
+          recipientStatusView: state.ui.recipientStatusView,
+          needsDatabaseSync: state.ui.needsDatabaseSync,
+          lastDatabaseSyncAt: state.ui.lastDatabaseSyncAt,
+          lastDatabaseSyncError: state.ui.lastDatabaseSyncError,
+        },
+      }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<CampaignStore>;
+
+        return {
+          ...currentState,
+          ...persisted,
+          ui: {
+            ...currentState.ui,
+            ...persisted.ui,
+          },
+        };
+      },
+    },
   ),
 );

@@ -1,4 +1,4 @@
-import { AlertCircle, Plus, Send, WandSparkles, X } from "lucide-react";
+import { AlertCircle, LoaderCircle, Plus, Send, WandSparkles, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,11 +13,9 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
     failedCount,
     isSending,
     onAddRecipient,
-    onCheckVisible,
     onClearAllSelected,
     onRetryFailed,
     onSendSelected,
-    onUncheckVisible,
     progress,
   } = props;
 
@@ -64,12 +62,6 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
             <WandSparkles className="h-4 w-4" />
             Re-check failed
           </Button>
-          <Button variant="secondary" onClick={onCheckVisible}>
-            Check visible page
-          </Button>
-          <Button variant="secondary" onClick={onUncheckVisible}>
-            Clear visible page
-          </Button>
         </div>
 
         <div className="space-y-2">
@@ -81,6 +73,16 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
           </div>
           <Progress value={progressValue} />
         </div>
+
+        {isSending ? (
+          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+            <span>
+              Sending is in progress. Keep this tab open while {progress.completed}/
+              {progress.total || checkedCount} emails finish processing.
+            </span>
+          </div>
+        ) : null}
 
         {error ? (
           <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">

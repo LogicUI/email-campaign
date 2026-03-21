@@ -15,9 +15,12 @@ export interface Campaign {
   globalSubject: string;
   globalBodyTemplate: string;
   createdAt: string;
+  sourceType: "uploaded_list" | "reused_history" | "manual";
+  savedListId?: string;
   importedFileName: string;
   importedSheetName?: string;
   detectedEmailColumn?: string;
+  detectedRecipientColumn?: string;
   totalRows: number;
   validRows: number;
   invalidRows: number;
@@ -28,6 +31,9 @@ export interface CampaignRecipient {
   rowIndex: number;
   source: "imported" | "manual";
   email: string;
+  recipient?: string;
+  sourceFileName?: string;
+  sourceSheetName?: string;
   subject: string;
   body: string;
   checked: boolean;
@@ -48,10 +54,25 @@ export interface CampaignRecipient {
   errorMessage?: string;
 }
 
+export interface ImportSourceFile {
+  fileName: string;
+  sheetName?: string;
+}
+
+export interface ImportSourceRow {
+  raw: Record<string, unknown>;
+  sourceFileName: string;
+  sourceSheetName?: string;
+  originalRowIndex: number;
+}
+
 export interface ImportPreviewRow {
   tempId: string;
   rowIndex: number;
   email?: string;
+  recipient?: string;
+  sourceFileName: string;
+  sourceSheetName?: string;
   isValid: boolean;
   invalidReason?: string;
   fields: Record<string, PrimitiveFieldValue>;
@@ -61,12 +82,40 @@ export interface ImportPreviewRow {
 export interface ImportPreview {
   fileName?: string;
   sheetName?: string;
+  savedListId?: string;
+  sourceFiles: ImportSourceFile[];
+  sourceRows: ImportSourceRow[];
   headers: string[];
   rows: ImportPreviewRow[];
   validCount: number;
   invalidCount: number;
   candidateEmailColumns: string[];
+  candidateRecipientColumns: string[];
   selectedEmailColumn?: string;
+  selectedRecipientColumn?: string;
+}
+
+export interface SavedWorkbookFileRecord {
+  fileName: string;
+  mimeType: string;
+  size: number;
+  lastModified: number;
+  dataBase64: string;
+}
+
+export interface SavedWorkbookRecord {
+  version: 2;
+  savedAt: string;
+  files: SavedWorkbookFileRecord[];
+}
+
+export interface LegacySavedWorkbookRecord {
+  version: 1;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  savedAt: string;
+  dataBase64: string;
 }
 
 export interface GenerationLogItem {

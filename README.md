@@ -89,6 +89,11 @@ bun run dev
 
 Then open `http://localhost:3000`. Unauthenticated users are redirected to `/login`.
 
+Notes:
+
+- The dev script runs Next.js through Bun's runtime using `bun --bun`, which is Bun's recommended setup for Next.js development.
+- Fast Refresh should update the browser automatically when you save supported app files. If you change environment variables or dependency versions, restart the dev server.
+
 ## API surface
 
 ### `POST /api/ai/regenerate`
@@ -142,15 +147,16 @@ app/
   store/                       # Zustand campaign store
   types/                       # Shared API and campaign types
   zodSchemas/                  # Runtime request/response schemas
-tests/
-  api/                         # Route and API handler tests
-  components/                  # UI workflow tests
-  core/                        # Pure utility tests
-  e2e/                         # Browser-level auth and route protection tests
-  fixtures/                    # Shared test data
-  setup/                       # Vitest setup and globals
-  store/                       # Zustand store tests
-  utils/                       # Shared test helper coverage
+app/
+  tests/
+    api/                       # Route and API handler tests
+    components/                # UI workflow tests
+    core/                      # Pure utility tests
+    e2e/                       # Browser-level auth and route protection tests
+    fixtures/                  # Shared test data
+    setup/                     # Vitest setup and globals
+    store/                     # Zustand store tests
+    utils/                     # Shared test helper coverage
 ```
 
 ## Good fit for this project

@@ -23,7 +23,15 @@ export function createAuthErrorResponse(code: ApiErrorCode) {
   );
 }
 
-export async function requireApiSession() {
+type RequireApiSessionResult =
+  | {
+      response: ReturnType<typeof createAuthErrorResponse>;
+    }
+  | {
+      session: Session;
+    };
+
+export async function requireApiSession(): Promise<RequireApiSessionResult> {
   const session = await getServerAuthSession();
 
   if (!session?.user?.email) {

@@ -39,6 +39,11 @@ export const AI_PROVIDER_CATALOG: Record<LlmProvider, ProviderCatalogEntry> = {
   },
 };
 
+/**
+ * Creates the empty settings object used for a single AI provider.
+ *
+ * @returns Blank provider settings ready for local state initialization.
+ */
 export function createEmptyProviderSettings(): LlmProviderSettings {
   return {
     apiKey: "",
@@ -46,6 +51,11 @@ export function createEmptyProviderSettings(): LlmProviderSettings {
   };
 }
 
+/**
+ * Builds the initial browser-local AI settings state for all supported providers.
+ *
+ * @returns Default provider settings record keyed by provider id.
+ */
 export function createInitialAiProvidersState() {
   return {
     openai: createEmptyProviderSettings(),
@@ -55,6 +65,16 @@ export function createInitialAiProvidersState() {
   } satisfies Record<LlmProvider, LlmProviderSettings>;
 }
 
+/**
+ * Resolves the model that should actually be used for a provider request.
+ *
+ * Custom user-entered models take precedence; otherwise the provider catalog default
+ * is used.
+ *
+ * @param provider Provider being configured.
+ * @param settings Stored provider settings for that provider.
+ * @returns Final model id to use in API calls.
+ */
 export function resolveProviderModel(
   provider: LlmProvider,
   settings: LlmProviderSettings,
@@ -62,6 +82,13 @@ export function resolveProviderModel(
   return settings.customModel.trim() || AI_PROVIDER_CATALOG[provider].defaultModel;
 }
 
+/**
+ * Resolves the UI settings for a provider into a request-ready config object.
+ *
+ * @param provider Provider being configured.
+ * @param settings Stored provider settings for that provider.
+ * @returns Request-ready provider config including resolved model and configured flag.
+ */
 export function resolveProviderConfig(
   provider: LlmProvider,
   settings: LlmProviderSettings,
@@ -74,6 +101,12 @@ export function resolveProviderConfig(
   };
 }
 
+/**
+ * Masks an API key for UI display without revealing the full secret.
+ *
+ * @param apiKey Raw stored API key.
+ * @returns Human-readable masked key label.
+ */
 export function maskApiKey(apiKey: string) {
   const trimmed = apiKey.trim();
 

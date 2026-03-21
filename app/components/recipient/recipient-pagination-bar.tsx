@@ -12,6 +12,7 @@ export function RecipientPaginationBar(props: RecipientPaginationBarProps) {
     onPageChange,
     onPageSizeChange,
     pageSize,
+    recipientLabel = "recipients",
     totalPages,
     totalRecipients,
   } = props;
@@ -19,7 +20,7 @@ export function RecipientPaginationBar(props: RecipientPaginationBarProps) {
   return (
     <div className="flex flex-col gap-4 rounded-2xl border bg-white/85 p-4 md:flex-row md:items-center md:justify-between">
       <div className="text-sm text-muted-foreground">
-        Page {currentPage} of {totalPages} · {totalRecipients} total recipients
+        Page {currentPage} of {totalPages} · {totalRecipients} {recipientLabel}
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Select

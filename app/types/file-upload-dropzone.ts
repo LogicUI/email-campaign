@@ -1,5 +1,8 @@
 export interface FileUploadDropzoneProps {
   isImporting: boolean;
   error?: string | null;
-  onFileSelect: (file: File | null) => void;
+  notice?: string | null;
+  savedWorkbookLabel?: string;
+  onFilesSelect: (files: FileList | File[] | null) => void;
+  onRestoreSavedFile?: () => void;
 }

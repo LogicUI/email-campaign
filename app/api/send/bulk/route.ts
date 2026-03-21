@@ -13,7 +13,7 @@ import type { BulkSendResponse, BulkSendResultItem } from "@/types/api";
 
 const CONCURRENCY = 5;
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<Response> {
   try {
     const authResult = await requireApiSession();
 

@@ -13,12 +13,19 @@ export interface CampaignSendProgress {
   failed: number;
 }
 
+export type RecipientStatusView = "unsent" | "sent";
+
 export interface CampaignStoreUiState {
   composeDialogOpen: boolean;
   currentPage: number;
   pageSize: number;
+  recipientStatusView: RecipientStatusView;
   isImporting: boolean;
   isSending: boolean;
+  isDatabaseSyncing: boolean;
+  needsDatabaseSync: boolean;
+  lastDatabaseSyncAt?: string;
+  lastDatabaseSyncError?: string;
   sendProgress: CampaignSendProgress;
 }
 
@@ -26,6 +33,8 @@ export interface CreateCampaignFromPreviewPayload {
   name: string;
   globalSubject: string;
   globalBodyTemplate: string;
+  sourceType?: Campaign["sourceType"];
+  savedListId?: string;
 }
 
 export interface UpdateGlobalTemplatePayload {
@@ -60,7 +69,9 @@ export interface CampaignStoreState {
 export interface CampaignStoreActions {
   setImporting: (value: boolean) => void;
   setImportPreview: (preview: ImportPreview | null) => void;
+  hydrateImportPreview: (preview: ImportPreview) => void;
   setSelectedEmailColumn: (column: string) => void;
+  setSelectedRecipientColumn: (column: string) => void;
   openComposeDialog: () => void;
   closeComposeDialog: () => void;
   createCampaignFromPreview: (payload: CreateCampaignFromPreviewPayload) => void;
@@ -74,6 +85,7 @@ export interface CampaignStoreActions {
   toggleRecipientsChecked: (ids: string[], checked: boolean) => void;
   setCurrentPage: (page: number) => void;
   setPageSize: (pageSize: number) => void;
+  setRecipientStatusView: (view: RecipientStatusView) => void;
   startRecipientRegeneration: (id: string) => void;
   appendGeneratedBodyChunk: (id: string, chunk: string) => void;
   failRecipientRegeneration: (payload: FailRecipientRegenerationPayload) => void;
@@ -82,6 +94,14 @@ export interface CampaignStoreActions {
   markRecipientsSending: (ids: string[]) => void;
   applySendResults: (results: BulkSendResultItem[]) => void;
   setSending: (value: boolean) => void;
+  markDatabaseSyncPending: () => void;
+  markDatabaseSyncStarted: () => void;
+  markDatabaseSyncSucceeded: (syncedAt: string) => void;
+  markDatabaseSyncFailed: (errorMessage: string) => void;
+  restoreCampaignFromHistory: (payload: {
+    campaign: Campaign;
+    recipients: CampaignRecipient[];
+  }) => void;
   resetSession: () => void;
 }
 

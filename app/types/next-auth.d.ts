@@ -4,6 +4,7 @@ declare module "next-auth" {
   interface Session {
     authError?: "REAUTH_REQUIRED";
     user: DefaultSession["user"] & {
+      id: string;
       email: string;
     };
   }
@@ -16,5 +17,6 @@ declare module "next-auth/jwt" {
     authError?: "REAUTH_REQUIRED";
     googleEmail?: string;
     refreshToken?: string;
+    userId?: string;
   }
 }

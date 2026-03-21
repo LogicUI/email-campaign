@@ -2,6 +2,15 @@ import OpenAI from "openai";
 
 import type { AiProviderParsedResponse, AiStreamDraftParams } from "@/types/ai-provider";
 
+/**
+ * Normalizes streamed delta payloads from OpenAI-compatible chat APIs.
+ *
+ * Different SDKs may surface deltas as strings or structured content parts. This
+ * helper collapses those variants into plain text for the regenerate stream.
+ *
+ * @param delta Provider delta payload from the SDK.
+ * @returns Plain text delta content.
+ */
 function getDeltaText(delta: unknown) {
   if (typeof delta === "string") {
     return delta;
@@ -26,6 +35,16 @@ function getDeltaText(delta: unknown) {
     .join("");
 }
 
+/**
+ * Streams a regenerated draft from an OpenAI-compatible chat endpoint.
+ *
+ * This adapter is shared by OpenAI itself and compatible providers such as DeepSeek
+ * so the app only needs one implementation for streaming text-delta handling.
+ *
+ * @param params Provider request parameters plus streaming callbacks.
+ * @param options.baseURL Optional alternate API base URL for compatible providers.
+ * @returns Parsed provider response containing the final body text.
+ */
 export async function streamWithOpenAiCompatible(
   params: AiStreamDraftParams,
   options?: {

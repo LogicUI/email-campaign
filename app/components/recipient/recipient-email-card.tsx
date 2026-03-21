@@ -1,12 +1,26 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Mail, Send, TriangleAlert, X } from "lucide-react";
 
+import {
+  DEFAULT_REGENERATE_PROMPT,
+  MAX_REGENERATE_PROMPT_LENGTH,
+} from "@/core/ai/regenerate-guardrails";
 import { useRecipientEditor } from "@/hooks/use-recipient-editor";
 import { useRecipientRegenerate } from "@/hooks/use-recipient-regenerate";
 import { RecipientCardToolbar } from "@/components/recipient/recipient-card-toolbar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +39,14 @@ export function RecipientEmailCard({
     recipient,
   } = useRecipientEditor(recipientId);
   const { error, isRegenerating, regenerate } = useRecipientRegenerate(recipientId);
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+  const [prompt, setPrompt] = useState(DEFAULT_REGENERATE_PROMPT);
+
+  useEffect(() => {
+    if (!regenerateDialogOpen) {
+      setPrompt(DEFAULT_REGENERATE_PROMPT);
+    }
+  }, [regenerateDialogOpen]);
 
   if (!recipient) {
     return null;
@@ -38,9 +60,7 @@ export function RecipientEmailCard({
             <CardTitle className="text-lg">
               {recipient.source === "manual"
                 ? recipient.email || "New recipient"
-                : recipient.fields.clinic_name
-                  ? String(recipient.fields.clinic_name)
-                  : recipient.email}
+                : recipient.recipient || recipient.email}
             </CardTitle>
             <div className="space-y-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
@@ -67,7 +87,11 @@ export function RecipientEmailCard({
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline">
-              {recipient.source === "manual" ? "Manual" : `Row ${recipient.rowIndex}`}
+              {recipient.source === "manual"
+                ? "Manual"
+                : recipient.sourceFileName
+                  ? `${recipient.sourceFileName} · Row ${recipient.rowIndex}`
+                  : `Row ${recipient.rowIndex}`}
             </Badge>
             <button
               type="button"
@@ -87,7 +111,7 @@ export function RecipientEmailCard({
           sent={recipient.sent}
           isRegenerating={isRegenerating}
           onCheckedChange={onCheckedChange}
-          onRegenerate={regenerate}
+          onRegenerate={() => setRegenerateDialogOpen(true)}
         />
       </CardHeader>
       <CardContent className="space-y-4">
@@ -117,6 +141,55 @@ export function RecipientEmailCard({
           </div>
         ) : null}
       </CardContent>
+
+      <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Regenerate with prompt</DialogTitle>
+            <DialogDescription>
+              The AI uses this prompt only to rewrite this email from the existing
+              campaign and recipient context. Non-email or unrelated instructions are
+              ignored.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor={`regenerate-prompt-${recipient.id}`}>Prompt</Label>
+            <Textarea
+              id={`regenerate-prompt-${recipient.id}`}
+              value={prompt}
+              maxLength={MAX_REGENERATE_PROMPT_LENGTH}
+              onChange={(event) => setPrompt(event.target.value)}
+              className="min-h-[180px]"
+            />
+            <p className="text-xs text-muted-foreground">
+              {prompt.length}/{MAX_REGENERATE_PROMPT_LENGTH} characters
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRegenerateDialogOpen(false)}
+              disabled={isRegenerating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                const result = await regenerate(prompt);
+
+                if (result === "started") {
+                  setRegenerateDialogOpen(false);
+                }
+              }}
+              disabled={!prompt.trim() || isRegenerating}
+            >
+              {isRegenerating ? "Generating..." : "Regenerate email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

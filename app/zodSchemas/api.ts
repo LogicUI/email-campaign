@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { MAX_REGENERATE_PROMPT_LENGTH } from "@/core/ai/regenerate-guardrails";
 import { LLM_PROVIDERS } from "@/core/ai/provider-defaults";
 import { primitiveFieldValueSchema } from "@/zodSchemas/shared";
 
@@ -36,6 +37,15 @@ export const regenerateRequestSchema = z.object({
   globalSubject: z.string(),
   globalBodyTemplate: z.string(),
   currentBody: requiredString("Current draft body is required."),
+  prompt: z
+    .string()
+    .trim()
+    .min(1, "Regeneration prompt is required.")
+    .max(
+      MAX_REGENERATE_PROMPT_LENGTH,
+      `Regeneration prompt must be ${MAX_REGENERATE_PROMPT_LENGTH} characters or fewer.`,
+    )
+    .optional(),
   provider: z.enum(LLM_PROVIDERS),
   apiKey: requiredString("Provider API key is required."),
   model: z.string().trim().optional(),
@@ -43,6 +53,26 @@ export const regenerateRequestSchema = z.object({
     email: recipientEmailSchema,
     fields: z.record(z.string(), primitiveFieldValueSchema),
   }),
+  mode: z.enum(["refresh", "improve", "shorten"]).optional(),
+});
+
+export const globalTemplateRegenerateRequestSchema = z.object({
+  globalSubject: z.string(),
+  globalBodyTemplate: requiredString("Global body template is required."),
+  prompt: z
+    .string()
+    .trim()
+    .min(1, "Regeneration prompt is required.")
+    .max(
+      MAX_REGENERATE_PROMPT_LENGTH,
+      `Regeneration prompt must be ${MAX_REGENERATE_PROMPT_LENGTH} characters or fewer.`,
+    )
+    .optional(),
+  provider: z.enum(LLM_PROVIDERS),
+  apiKey: requiredString("Provider API key is required."),
+  model: z.string().trim().optional(),
+  availablePlaceholders: z.array(z.string().trim().min(1)).optional(),
+  detectedRecipientPlaceholder: z.string().trim().optional(),
   mode: z.enum(["refresh", "improve", "shorten"]).optional(),
 });
 

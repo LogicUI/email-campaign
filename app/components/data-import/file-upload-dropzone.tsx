@@ -8,7 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import type { FileUploadDropzoneProps } from "@/types/file-upload-dropzone";
 
 export function FileUploadDropzone(props: FileUploadDropzoneProps) {
-  const { error, isImporting, onFileSelect } = props;
+  const {
+    error,
+    isImporting,
+    notice,
+    onFilesSelect,
+    onRestoreSavedFile,
+    savedWorkbookLabel,
+  } = props;
 
   return (
     <Card className="border-dashed bg-white/85">
@@ -18,14 +25,14 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
         </div>
         <CardTitle className="text-3xl">Upload your lead file</CardTitle>
         <CardDescription className="max-w-2xl text-base">
-          Import a CSV or Excel file, map the email column, define one global template,
-          then edit and send individual drafts from the same session.
+          Import one or more CSV or Excel files, map the email column, define one global
+          template, then edit and send individual drafts from the same session.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/50 px-6 py-12 text-center">
           <Upload className="mb-4 h-8 w-8 text-muted-foreground" />
-          <span className="text-base font-medium">Choose CSV or Excel file</span>
+          <span className="text-base font-medium">Choose CSV or Excel files</span>
           <span className="mt-2 text-sm text-muted-foreground">
             Supports `.csv`, `.xlsx`, `.xls`
           </span>
@@ -33,7 +40,11 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
             className="sr-only"
             type="file"
             accept=".csv,.xlsx,.xls"
-            onChange={(event) => onFileSelect(event.target.files?.[0] ?? null)}
+            multiple
+            onChange={(event) => {
+              void onFilesSelect(event.target.files);
+              event.currentTarget.value = "";
+            }}
           />
         </label>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -46,15 +57,37 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
               const input = document.createElement("input");
               input.type = "file";
               input.accept = ".csv,.xlsx,.xls";
-              input.onchange = () => onFileSelect(input.files?.[0] ?? null);
+              input.multiple = true;
+              input.onchange = () => {
+                void onFilesSelect(input.files);
+                input.value = "";
+              };
               input.click();
             }}
           >
-            {isImporting ? "Parsing file..." : "Select file"}
+            {isImporting ? "Parsing files..." : "Select files"}
           </Button>
-          <span>All recipient data stays in memory until the page refreshes.</span>
+          {savedWorkbookLabel ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isImporting}
+              onClick={onRestoreSavedFile}
+            >
+              Use saved file
+            </Button>
+          ) : null}
+          <span>
+            The last uploaded workbook is saved locally in this browser for reuse.
+          </span>
         </div>
+        {savedWorkbookLabel ? (
+          <p className="text-sm text-muted-foreground">
+            Saved workbook set: <span className="font-medium text-foreground">{savedWorkbookLabel}</span>
+          </p>
+        ) : null}
         <AiSettingsTrigger context="upload" />
+        {notice ? <p className="text-sm text-amber-700">{notice}</p> : null}
       </CardContent>
     </Card>
   );

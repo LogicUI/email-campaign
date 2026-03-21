@@ -19,7 +19,13 @@ export function useCampaignBuilder() {
   const resetSession = useCampaignStore((state) => state.resetSession);
 
   const canStartCampaign = useMemo(
-    () => Boolean(preview && preview.validCount > 0),
+    () =>
+      Boolean(
+        preview &&
+          preview.validCount > 0 &&
+          preview.selectedEmailColumn &&
+          preview.selectedRecipientColumn,
+      ),
     [preview],
   );
 

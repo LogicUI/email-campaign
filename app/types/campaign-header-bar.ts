@@ -4,6 +4,4 @@ export interface CampaignHeaderBarProps {
   campaign: Campaign;
   senderEmail: string;
   totalRecipients: number;
-  onEditTemplate: () => void;
-  onReset: () => void;
 }

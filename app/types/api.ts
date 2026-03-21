@@ -6,6 +6,7 @@ export interface RegenerateRequest {
   globalSubject: string;
   globalBodyTemplate: string;
   currentBody: string;
+  prompt?: string;
   provider: LlmProvider;
   apiKey: string;
   model?: string;
@@ -16,12 +17,35 @@ export interface RegenerateRequest {
   mode?: "refresh" | "improve" | "shorten";
 }
 
+export interface GlobalTemplateRegenerateRequest {
+  globalSubject: string;
+  globalBodyTemplate: string;
+  prompt?: string;
+  provider: LlmProvider;
+  apiKey: string;
+  model?: string;
+  availablePlaceholders?: string[];
+  detectedRecipientPlaceholder?: string;
+  mode?: "refresh" | "improve" | "shorten";
+}
+
 export interface RegenerateResponse {
   ok: boolean;
   code?: ApiErrorCode;
   data?: {
     recipientId: string;
     subject?: string;
+    body: string;
+    reasoning?: string;
+  };
+  error?: string;
+}
+
+export interface GlobalTemplateRegenerateResponse {
+  ok: boolean;
+  code?: ApiErrorCode;
+  data?: {
+    subject: string;
     body: string;
     reasoning?: string;
   };
@@ -84,9 +108,11 @@ export interface BulkSendResultItem {
 export interface BulkSendResponse {
   ok: boolean;
   code?: ApiErrorCode;
-  data?: {
-    sendJobId: string;
-    results: BulkSendResultItem[];
-  };
+  data?: BulkSendResponseData;
   error?: string;
+}
+
+export interface BulkSendResponseData {
+  sendJobId: string;
+  results: BulkSendResultItem[];
 }

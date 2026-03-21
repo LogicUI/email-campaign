@@ -10,6 +10,4 @@ export interface SendSummaryBarProps {
   onClearAllSelected: () => void;
   onSendSelected: () => void;
   onRetryFailed: () => void;
-  onCheckVisible: () => void;
-  onUncheckVisible: () => void;
 }

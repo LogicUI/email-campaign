@@ -1,5 +1,6 @@
 export interface RecipientPaginationBarProps {
   currentPage: number;
+  recipientLabel?: string;
   totalPages: number;
   pageSize: number;
   totalRecipients: number;

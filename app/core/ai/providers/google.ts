@@ -2,6 +2,12 @@ import { GoogleGenAI } from "@google/genai";
 
 import type { AiProviderParsedResponse, AiStreamDraftParams } from "@/types/ai-provider";
 
+/**
+ * Streams a regenerated draft from Google's Gemini API and forwards body deltas.
+ *
+ * @param params Provider request parameters plus streaming callbacks.
+ * @returns Parsed provider response containing the final body text.
+ */
 export async function generateWithGoogle(
   params: AiStreamDraftParams,
 ): Promise<AiProviderParsedResponse> {

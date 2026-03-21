@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import type { SendStatus } from "@/types/campaign";
 
@@ -18,6 +18,17 @@ function getStatusVariant(status: SendStatus): "secondary" | "success" | "warnin
       return "warning";
     default:
       return "secondary";
+  }
+}
+
+function getStatusLabel(status: SendStatus) {
+  switch (status) {
+    case "queued":
+      return "Queued to send";
+    case "sending":
+      return "Sending now";
+    default:
+      return status;
   }
 }
 
@@ -45,7 +56,15 @@ export function RecipientCardToolbar(props: RecipientCardToolbarProps) {
             {sent ? "Already sent" : checked ? "Selected" : "Not selected"}
           </span>
         </div>
-        <Badge variant={getStatusVariant(status)}>{status}</Badge>
+        <Badge variant={getStatusVariant(status)} className="gap-1.5">
+          {status === "sending" ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          ) : null}
+          {status === "queued" ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          ) : null}
+          {getStatusLabel(status)}
+        </Badge>
       </div>
       <Button
         type="button"
@@ -55,7 +74,7 @@ export function RecipientCardToolbar(props: RecipientCardToolbarProps) {
         disabled={isRegenerating}
       >
         <RefreshCw className={isRegenerating ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-        {isRegenerating ? "Generating..." : "Regenerate"}
+        {isRegenerating ? "Generating..." : "Regenerate with prompt"}
       </Button>
     </div>
   );

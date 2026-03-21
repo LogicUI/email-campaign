@@ -1,4 +1,4 @@
-import type { Campaign } from "@/types/campaign";
+import type { Campaign, ImportPreview } from "@/types/campaign";
 
 export interface CampaignComposeDialogSubmitPayload {
   name: string;
@@ -10,6 +10,7 @@ export interface CampaignComposeDialogSubmitPayload {
 export interface CampaignComposeDialogProps {
   open: boolean;
   campaign: Campaign | null;
+  preview?: ImportPreview | null;
   onClose: () => void;
   onSubmit: (payload: CampaignComposeDialogSubmitPayload) => void;
 }

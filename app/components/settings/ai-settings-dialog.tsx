@@ -300,6 +300,12 @@ export function AiSettingsDialog(props: AiSettingsDialogProps) {
               <Button
                 type="button"
                 onClick={() => {
+                  const nextActiveProvider = draftProviders[draftActiveProvider].apiKey.trim()
+                    ? draftActiveProvider
+                    : draftProviders[selectedProvider].apiKey.trim()
+                      ? selectedProvider
+                      : draftActiveProvider;
+
                   LLM_PROVIDERS.forEach((provider) => {
                     setProviderApiKey(provider, draftProviders[provider].apiKey.trim());
                     setProviderCustomModel(
@@ -307,7 +313,7 @@ export function AiSettingsDialog(props: AiSettingsDialogProps) {
                       draftProviders[provider].customModel.trim(),
                     );
                   });
-                  setActiveProvider(draftActiveProvider);
+                  setActiveProvider(nextActiveProvider);
                   onOpenChange(false);
                 }}
               >

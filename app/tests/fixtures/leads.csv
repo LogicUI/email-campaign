@@ -1,0 +1,5 @@
+email,clinic_name,address
+north@example.com,North Clinic,1 Main Street
+bad-email,Bad Clinic,2 Main Street
+south@example.com,South Clinic,3 Main Street
+north@example.com,Duplicate Clinic,4 Main Street

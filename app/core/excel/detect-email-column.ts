@@ -2,6 +2,17 @@ import { isValidEmail } from "@/core/utils/email";
 
 const EXACT_MATCHES = new Set(["email", "e-mail", "email_address", "emailaddress"]);
 
+/**
+ * Detects the most likely email column from spreadsheet headers and sample rows.
+ *
+ * The import flow needs a sensible default before the user reviews the uploaded
+ * data. The detector prefers exact header matches first, then obvious fuzzy header
+ * matches, and finally falls back to sampling actual row values for valid emails.
+ *
+ * @param rows Raw spreadsheet rows.
+ * @param headers Ordered header list from the upload.
+ * @returns Selected email column and all candidate columns in confidence order.
+ */
 export function detectEmailColumn(rows: Record<string, unknown>[], headers: string[]) {
   const normalizedToOriginal = new Map<string, string>();
 
@@ -53,6 +64,15 @@ export function detectEmailColumn(rows: Record<string, unknown>[], headers: stri
   };
 }
 
+/**
+ * Normalizes a spreadsheet header into a comparison-friendly key.
+ *
+ * This exists so header detection and mapping logic can compare columns reliably
+ * without caring about case or whitespace differences.
+ *
+ * @param header Original uploaded header text.
+ * @returns Lowercased underscore-normalized header value.
+ */
 export function normalizeHeader(header: string) {
   return header.trim().toLowerCase().replace(/\s+/g, "_");
 }

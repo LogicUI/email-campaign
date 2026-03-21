@@ -28,6 +28,12 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, account, profile }) {
+      if (typeof profile?.sub === "string") {
+        token.userId = profile.sub;
+      } else if (typeof token.sub === "string" && !token.userId) {
+        token.userId = token.sub;
+      }
+
       if (account) {
         token.accessToken = account.access_token;
         token.accessTokenExpiresAt = account.expires_at ? account.expires_at * 1000 : undefined;
@@ -42,10 +48,12 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (!session.user) {
         session.user = {
+          id: "",
           email: "",
         };
       }
 
+      session.user.id = token.userId ?? token.sub ?? session.user.id ?? "";
       session.user.email = token.googleEmail ?? token.email ?? session.user.email ?? "";
       session.authError = token.authError;
 
