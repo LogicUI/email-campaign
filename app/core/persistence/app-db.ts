@@ -109,7 +109,7 @@ const appSchemaStatements = [
  *
  * @returns Shared app database client, or `null` when persistence is not configured.
  */
-export function getAppDatabase(): AppDatabase | null {
+function getAppDatabase(): AppDatabase | null {
   if (cachedDb !== undefined) {
     return cachedDb;
   }
@@ -145,7 +145,7 @@ export function getAppDatabase(): AppDatabase | null {
  * @returns Configured app database client.
  * @throws Error when `APP_DATABASE_URL` is not configured.
  */
-export function requireAppDatabase() {
+function requireAppDatabase() {
   const db = getAppDatabase();
 
   if (!db) {
@@ -184,7 +184,7 @@ export async function getReadyAppDatabase() {
  *
  * @returns Promise that resolves once the schema has been created or confirmed.
  */
-export async function ensureAppDatabaseSchema() {
+async function ensureAppDatabaseSchema() {
   const db = getAppDatabase();
 
   if (!db) {

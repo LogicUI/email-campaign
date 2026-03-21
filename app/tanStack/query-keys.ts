@@ -12,7 +12,7 @@ function hashString(value: string) {
   return (hash >>> 0).toString(36);
 }
 
-export function getConnectionQueryFingerprint(
+function getConnectionQueryFingerprint(
   connection?: Pick<DatabaseSessionConnection, "provider" | "connectionString"> | null,
 ) {
   if (!connection?.connectionString.trim()) {

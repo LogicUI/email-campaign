@@ -4,9 +4,9 @@ import { primitiveFieldValueSchema } from "@/zodSchemas/shared";
 
 const requiredString = (message: string) => z.string().trim().min(1, message);
 
-export const databaseProviderSchema = z.enum(["supabase", "postgres"]);
+const databaseProviderSchema = z.enum(["supabase", "postgres"]);
 
-export const databaseSessionConnectionSchema = z.object({
+const databaseSessionConnectionSchema = z.object({
   provider: databaseProviderSchema,
   connectionString: requiredString("Connection string is required."),
   label: requiredString("Connection label is required."),
@@ -15,25 +15,25 @@ export const databaseSessionConnectionSchema = z.object({
   lastSyncedAt: z.string().trim().optional(),
 });
 
-export const databaseTableRefSchema = z.object({
+const databaseTableRefSchema = z.object({
   schema: requiredString("Schema is required."),
   name: requiredString("Table name is required."),
   displayName: requiredString("Display name is required."),
 });
 
-export const inferredDatabaseColumnSchema = z.object({
+const inferredDatabaseColumnSchema = z.object({
   sourceHeader: requiredString("Source header is required."),
   suggestedName: requiredString("Column name is required."),
   suggestedType: requiredString("Column type is required."),
   nullable: z.boolean(),
 });
 
-export const databaseImportColumnMappingSchema = z.object({
+const databaseImportColumnMappingSchema = z.object({
   sourceColumn: requiredString("Source column is required."),
   destinationColumn: z.string().trim().optional(),
 });
 
-export const importPreviewRowSchema = z.object({
+const importPreviewRowSchema = z.object({
   tempId: requiredString("Temporary row id is required."),
   rowIndex: z.number().int(),
   email: z.string().trim().optional(),
@@ -46,7 +46,7 @@ export const importPreviewRowSchema = z.object({
   raw: z.record(z.string(), z.unknown()),
 });
 
-export const importPreviewSchema = z.object({
+const importPreviewSchema = z.object({
   fileName: z.string().trim().optional(),
   sheetName: z.string().trim().optional(),
   sourceFiles: z.array(

@@ -2,11 +2,11 @@ import { z } from "zod";
 
 const requiredString = (message: string) => z.string().trim().min(1, message);
 
-export const listGoogleDriveFilesRequestSchema = z.object({
+const listGoogleDriveFilesRequestSchema = z.object({
   query: z.string().trim().optional(),
 });
 
-export const listGoogleSheetWorksheetsRequestSchema = z.object({
+const listGoogleSheetWorksheetsRequestSchema = z.object({
   spreadsheetId: requiredString("Spreadsheet id is required."),
 });
 

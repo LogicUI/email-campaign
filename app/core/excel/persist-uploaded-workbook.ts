@@ -261,6 +261,6 @@ export function rebuildUploadedWorkbookFiles(record: SavedWorkbookRecord) {
  * @param record Saved workbook bundle loaded from localStorage.
  * @returns First reconstructed file in the bundle.
  */
-export function rebuildUploadedWorkbookFile(record: SavedWorkbookRecord) {
+function rebuildUploadedWorkbookFile(record: SavedWorkbookRecord) {
   return rebuildUploadedWorkbookFiles(record)[0];
 }

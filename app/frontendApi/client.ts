@@ -8,7 +8,7 @@ export interface ApiEnvelope<T> {
   error?: string;
 }
 
-export const frontendApiClient = axios.create({
+const frontendApiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },

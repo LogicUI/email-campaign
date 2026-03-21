@@ -4,6 +4,22 @@ import { afterEach, beforeAll, beforeEach, vi } from "vitest";
 
 import { initialAiSettingsState, useAiSettingsStore } from "@/store/ai-settings-store";
 import { useCampaignStore } from "@/store/campaign-store";
+import {
+  getMockPathname,
+  getMockSearchParams,
+  mockNotFound,
+  mockRedirect,
+  mockRouter,
+  resetMockRouter,
+} from "@/tests/utils/mock-next-navigation";
+
+vi.mock("next/navigation", () => ({
+  notFound: mockNotFound,
+  redirect: mockRedirect,
+  usePathname: () => getMockPathname(),
+  useRouter: () => mockRouter,
+  useSearchParams: () => getMockSearchParams(),
+}));
 
 const initialStoreState = useCampaignStore.getState();
 
@@ -53,6 +69,7 @@ beforeEach(() => {
   useAiSettingsStore.setState(initialAiSettingsState);
   useCampaignStore.setState(initialStoreState, true);
   vi.restoreAllMocks();
+  resetMockRouter();
   vi.unstubAllGlobals();
 });
 

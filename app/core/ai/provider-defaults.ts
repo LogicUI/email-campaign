@@ -44,7 +44,7 @@ export const AI_PROVIDER_CATALOG: Record<LlmProvider, ProviderCatalogEntry> = {
  *
  * @returns Blank provider settings ready for local state initialization.
  */
-export function createEmptyProviderSettings(): LlmProviderSettings {
+function createEmptyProviderSettings(): LlmProviderSettings {
   return {
     apiKey: "",
     customModel: "",
@@ -75,7 +75,7 @@ export function createInitialAiProvidersState() {
  * @param settings Stored provider settings for that provider.
  * @returns Final model id to use in API calls.
  */
-export function resolveProviderModel(
+function resolveProviderModel(
   provider: LlmProvider,
   settings: LlmProviderSettings,
 ) {

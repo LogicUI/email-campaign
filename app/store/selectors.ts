@@ -9,11 +9,3 @@ export const selectRecipientsById = (state: CampaignStore) => state.recipientsBy
 export const selectRecipientById = (id: string) => (state: CampaignStore) =>
   state.recipientsById[id];
 
-export const selectCheckedUnsentRecipientIds = (state: CampaignStore) =>
-  state.recipientOrder.filter((id) => {
-    const recipient = state.recipientsById[id];
-    return recipient?.checked && !recipient.sent && recipient.status !== "sending";
-  });
-
-export const selectFailedRecipientIds = (state: CampaignStore) =>
-  state.recipientOrder.filter((id) => state.recipientsById[id]?.status === "failed");

@@ -6,7 +6,7 @@ import { primitiveFieldValueSchema } from "@/zodSchemas/shared";
 
 const requiredString = (message: string) => z.string().trim().min(1, message);
 
-export const recipientEmailSchema = z.string().trim().email("Recipient email is invalid.");
+const recipientEmailSchema = z.string().trim().email("Recipient email is invalid.");
 
 export const sendRecipientContentSchema = z.object({
   email: recipientEmailSchema,
@@ -14,11 +14,11 @@ export const sendRecipientContentSchema = z.object({
   body: requiredString("Email body is required."),
 });
 
-export const sendPayloadRecipientSchema = sendRecipientContentSchema.extend({
+const sendPayloadRecipientSchema = sendRecipientContentSchema.extend({
   id: requiredString("Recipient id is required."),
 });
 
-export const BULK_SEND_MAX_RECIPIENTS = 100;
+const BULK_SEND_MAX_RECIPIENTS = 100;
 
 export const bulkSendRequestSchema = z.object({
   campaignId: requiredString("Campaign id is required."),
@@ -76,7 +76,7 @@ export const globalTemplateRegenerateRequestSchema = z.object({
   mode: z.enum(["refresh", "improve", "shorten"]).optional(),
 });
 
-export const regenerateProviderResponseSchema = z.object({
+const regenerateProviderResponseSchema = z.object({
   body: requiredString("AI provider did not return a body."),
   subject: z.string().optional(),
   reasoning: z.string().optional(),
