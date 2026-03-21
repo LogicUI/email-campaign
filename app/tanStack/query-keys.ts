@@ -28,6 +28,11 @@ export const queryKeys = {
     savedList: (savedListId: string) => ["dashboard", "saved-list", savedListId] as const,
     campaign: (campaignId: string) => ["dashboard", "campaign", campaignId] as const,
   },
+  google: {
+    driveFiles: (query: string) => ["google", "drive-files", query.trim()] as const,
+    worksheets: (spreadsheetId: string) =>
+      ["google", "worksheets", spreadsheetId.trim()] as const,
+  },
   database: {
     tables: (connection?: Pick<DatabaseSessionConnection, "provider" | "connectionString"> | null) =>
       ["database", "tables", getConnectionQueryFingerprint(connection)] as const,

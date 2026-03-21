@@ -1,10 +1,10 @@
 "use client";
 
-import { FileSpreadsheet, Upload } from "lucide-react";
+import { Database, FileSpreadsheet, Sheet, Upload } from "lucide-react";
 
 import { AiSettingsTrigger } from "@/components/settings/ai-settings-trigger";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import type { FileUploadDropzoneProps } from "@/types/file-upload-dropzone";
 
 export function FileUploadDropzone(props: FileUploadDropzoneProps) {
@@ -13,6 +13,8 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
     isImporting,
     notice,
     onFilesSelect,
+    onImportFromDatabase,
+    onImportFromGoogle,
     onRestoreSavedFile,
     savedWorkbookLabel,
   } = props;
@@ -23,7 +25,7 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary">
           <FileSpreadsheet className="h-7 w-7 text-primary" />
         </div>
-        <CardTitle className="text-3xl">Upload your lead file</CardTitle>
+        <h1 className="text-3xl font-semibold leading-none tracking-tight">Upload your lead file</h1>
         <CardDescription className="max-w-2xl text-base">
           Import one or more CSV or Excel files, map the email column, define one global
           template, then edit and send individual drafts from the same session.
@@ -67,6 +69,28 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
           >
             {isImporting ? "Parsing files..." : "Select files"}
           </Button>
+          {onImportFromGoogle ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isImporting}
+              onClick={onImportFromGoogle}
+            >
+              <Sheet className="h-4 w-4" />
+              Google Sheets
+            </Button>
+          ) : null}
+          {onImportFromDatabase ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isImporting}
+              onClick={onImportFromDatabase}
+            >
+              <Database className="h-4 w-4" />
+              Database
+            </Button>
+          ) : null}
           {savedWorkbookLabel ? (
             <Button
               type="button"

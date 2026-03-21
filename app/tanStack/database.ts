@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   connectDatabase,
   describeDatabaseTable,
+  importDatabaseTablePreview,
   listDatabaseTables,
   saveDatabaseImport,
   testDatabaseConnection,
@@ -73,6 +74,15 @@ export function useDescribeDatabaseTableMutation(connection: DatabaseSessionConn
     onSuccess: (data, table) => {
       queryClient.setQueryData(queryKeys.database.tableSchema(connection, table.displayName), data);
     },
+  });
+}
+
+export function useImportDatabaseTablePreviewMutation(
+  connection: DatabaseSessionConnection | null,
+) {
+  return useMutation({
+    mutationFn: (table: DatabaseTableRef) =>
+      importDatabaseTablePreview(connection as DatabaseSessionConnection, table),
   });
 }
 

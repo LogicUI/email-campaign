@@ -32,13 +32,12 @@ interface EditableSchemaEditorProps {
 /**
  * Reusable component for editing database table schema inferred from Excel data.
  *
- * This component extracts the schema editing pattern from DatabaseImportDialog,
- * allowing users to customize column names, types, and constraints before creating
- * a database table. It shows a live preview of how sample rows will appear.
+ * This component extracts the schema editing pattern from the upload-to-database
+ * flow, allowing users to customize column names, types, and constraints before
+ * creating a database table. It shows a live preview of how sample rows will appear.
  *
  * Used in:
  * - DatabaseSettingsDialog (import flow)
- * - DatabaseImportDialog (new table creation)
  */
 export function EditableSchemaEditor({
   columns,

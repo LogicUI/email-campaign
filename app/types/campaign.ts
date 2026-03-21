@@ -15,10 +15,19 @@ export interface Campaign {
   globalSubject: string;
   globalBodyTemplate: string;
   createdAt: string;
-  sourceType: "uploaded_list" | "reused_history" | "manual";
+  sourceType:
+    | "uploaded_list"
+    | "reused_history"
+    | "manual"
+    | "google_sheet"
+    | "database_table";
   savedListId?: string;
   importedFileName: string;
   importedSheetName?: string;
+  googleSpreadsheetId?: string;
+  googleSpreadsheetUrl?: string;
+  databaseConnectionLabel?: string;
+  databaseTableName?: string;
   detectedEmailColumn?: string;
   detectedRecipientColumn?: string;
   totalRows: number;
@@ -83,6 +92,11 @@ export interface ImportPreview {
   fileName?: string;
   sheetName?: string;
   savedListId?: string;
+  sourceType?: "uploaded_file" | "google_sheet" | "database_table";
+  googleSpreadsheetId?: string;
+  googleSpreadsheetUrl?: string;
+  databaseConnectionLabel?: string;
+  databaseTableName?: string;
   sourceFiles: ImportSourceFile[];
   sourceRows: ImportSourceRow[];
   headers: string[];

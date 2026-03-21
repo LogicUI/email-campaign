@@ -127,7 +127,9 @@ export const saveCampaignHistoryRequestSchema = z.object({
     totalRows: z.number().int(),
     validRows: z.number().int(),
     invalidRows: z.number().int(),
-    sourceType: z.enum(["uploaded_list", "reused_history", "manual"]).optional(),
+    sourceType: z
+      .enum(["uploaded_list", "reused_history", "manual", "google_sheet", "database_table"])
+      .optional(),
     savedListId: z.string().trim().optional(),
   }),
   recipients: z.array(
@@ -159,7 +161,9 @@ export const saveCampaignHistoryRequestSchema = z.object({
       errorMessage: z.string().optional(),
     }),
   ),
-  sourceType: z.enum(["uploaded_list", "reused_history", "manual"]).default("manual"),
+  sourceType: z
+    .enum(["uploaded_list", "reused_history", "manual", "google_sheet", "database_table"])
+    .default("manual"),
   savedListId: z.string().trim().optional(),
   sentAt: z.string().trim().optional(),
   profileId: z.string().trim().optional(),

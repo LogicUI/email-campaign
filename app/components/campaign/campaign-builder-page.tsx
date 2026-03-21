@@ -7,18 +7,21 @@ import { useCampaignBuilder } from "@/hooks/use-campaign-builder";
 import { useExcelImport } from "@/hooks/use-excel-import";
 import { useRecipientPagination } from "@/hooks/use-recipient-pagination";
 import { useCampaignStore } from "@/store/campaign-store";
-import { selectRecipientOrder, selectUi } from "@/store/selectors";
+import { selectRecipientOrder, selectRecipientsById, selectUi } from "@/store/selectors";
 import { CampaignActionBar } from "@/components/campaign/campaign-action-bar";
 import { CampaignComposeDialog } from "@/components/campaign/campaign-compose-dialog";
-import { DatabaseImportDialog } from "@/components/campaign/database-import-dialog";
 import { CampaignHeaderBar } from "@/components/campaign/campaign-header-bar";
 import { ReuploadWorkbookDialog } from "@/components/campaign/reupload-workbook-dialog";
 import { SendSummaryBar } from "@/components/campaign/send-summary-bar";
+import { DatabaseSourceDialog } from "@/components/database/database-source-dialog";
 import { FileUploadDropzone } from "@/components/data-import/file-upload-dropzone";
+import { GoogleDriveImportDialog } from "@/components/google/google-drive-import-dialog";
+import { GoogleSheetsExportDialog } from "@/components/google/google-sheets-export-dialog";
 import { ImportPreviewDialog } from "@/components/data-import/import-preview-dialog";
 import { RecipientList } from "@/components/recipient/recipient-list";
 import { RecipientPaginationBar } from "@/components/recipient/recipient-pagination-bar";
 import { RecipientStatusTabs } from "@/components/recipient/recipient-status-tabs";
+import { DatabaseSettingsDialog } from "@/components/settings/database-settings-dialog";
 import { useDatabaseSessionStore } from "@/store/database-session-store";
 import type { CampaignBuilderPageProps } from "@/types/campaign-builder-page";
 
@@ -33,9 +36,13 @@ export function CampaignBuilderPage({
   const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false);
   const [reuploadInputMode, setReuploadInputMode] = useState<"replace" | "append">("replace");
   const [databaseImportDialogOpen, setDatabaseImportDialogOpen] = useState(false);
+  const [databaseSourceDialogOpen, setDatabaseSourceDialogOpen] = useState(false);
+  const [googleImportDialogOpen, setGoogleImportDialogOpen] = useState(false);
+  const [googleExportDialogOpen, setGoogleExportDialogOpen] = useState(false);
   const activeConnection = useDatabaseSessionStore((state) => state.activeConnection);
   const ui = useCampaignStore(selectUi);
   const recipientOrder = useCampaignStore(selectRecipientOrder);
+  const recipientsById = useCampaignStore(selectRecipientsById);
   const setImportPreview = useCampaignStore((state) => state.setImportPreview);
   const toggleRecipientsChecked = useCampaignStore((state) => state.toggleRecipientsChecked);
   const {
@@ -103,9 +110,17 @@ export function CampaignBuilderPage({
       ? savedWorkbook.files[0].fileName
       : `${savedWorkbook.files[0].fileName} + ${savedWorkbook.files.length - 1} more`
     : undefined;
+  const allRecipients = useMemo(
+    () => recipientOrder.map((id) => recipientsById[id]).filter(Boolean),
+    [recipientOrder, recipientsById],
+  );
+  const canSaveResultsToGoogle = Boolean(
+    campaign?.googleSpreadsheetId &&
+      allRecipients.some((recipient) => recipient.status === "sent" || recipient.status === "failed"),
+  );
 
   return (
-    <main className="app-shell">
+    <section className="app-shell" aria-label="Campaign workspace">
       <div className="container py-6 md:py-10">
         <div className="mx-auto flex max-w-7xl flex-col gap-6">
           {hasActiveSession ? (
@@ -122,9 +137,9 @@ export function CampaignBuilderPage({
               <CampaignHeaderBar
                 campaign={campaign}
                 senderEmail={senderEmail}
-                totalRecipients={totalRecipients}
               />
               <SendSummaryBar
+                canSaveResultsToGoogle={canSaveResultsToGoogle}
                 checkedCount={bulkSend.checkedCount}
                 failedCount={bulkSend.failedCount}
                 isSending={bulkSend.isSending}
@@ -132,6 +147,7 @@ export function CampaignBuilderPage({
                 error={bulkSend.error}
                 onAddRecipient={addManualRecipient}
                 onClearAllSelected={() => toggleRecipientsChecked(recipientOrder, false)}
+                onSaveResultsToGoogle={() => setGoogleExportDialogOpen(true)}
                 onSendSelected={bulkSend.sendSelected}
                 onRetryFailed={bulkSend.retryFailed}
               />
@@ -167,6 +183,8 @@ export function CampaignBuilderPage({
                 error={error}
                 notice={notice}
                 onFilesSelect={onFilesSelect}
+                onImportFromDatabase={() => setDatabaseSourceDialogOpen(true)}
+                onImportFromGoogle={() => setGoogleImportDialogOpen(true)}
                 onRestoreSavedFile={hasSavedWorkbook ? restoreSavedWorkbook : undefined}
                 savedWorkbookLabel={savedWorkbookLabel}
               />
@@ -246,8 +264,8 @@ export function CampaignBuilderPage({
           reuploadInputRef.current?.click();
         }}
         onChooseDifferentFile={() => {
-          setReuploadInputMode("replace");
-          reuploadInputRef.current?.click();
+          resetSession();
+          setReuploadDialogOpen(false);
         }}
         onUseSavedFile={async () => {
           setReuploadDialogOpen(false);
@@ -274,29 +292,54 @@ export function CampaignBuilderPage({
         }}
       />
 
-      <DatabaseImportDialog
+      <DatabaseSettingsDialog
         open={databaseImportDialogOpen}
         onOpenChange={setDatabaseImportDialogOpen}
-        preview={preview}
-        activeConnection={activeConnection}
-        connectionProfiles={connectionProfiles}
-        onOpenDatabaseSettings={() =>
-          onOpenDatabaseSettings?.({
-            source: "database-import",
-            preview,
-          })
+        initialProfiles={connectionProfiles}
+        importPreview={preview}
+        origin="database-import"
+        onProfilesUpdated={
+          onSavedDataChange
+            ? async () => {
+                await onSavedDataChange();
+              }
+            : undefined
         }
-        onSaved={(savedList) => {
+        onImportSaved={(result) => {
           if (preview) {
             setImportPreview({
               ...preview,
-              savedListId: savedList.id,
+              savedListId: result.savedList.id,
+              databaseConnectionLabel: activeConnection?.label,
+              databaseTableName: result.destinationTableName,
             });
           }
 
           void onSavedDataChange?.();
         }}
       />
+
+      <DatabaseSourceDialog
+        open={databaseSourceDialogOpen}
+        onOpenChange={setDatabaseSourceDialogOpen}
+        activeConnection={activeConnection}
+        onOpenDatabaseSettings={() => onOpenDatabaseSettings?.()}
+        onImported={(importedPreview) => {
+          resetSession();
+          setImportPreview(importedPreview);
+        }}
+      />
+
+      {googleImportDialogOpen ? (
+        <GoogleDriveImportDialog
+          open={googleImportDialogOpen}
+          onOpenChange={setGoogleImportDialogOpen}
+          onImported={(importedPreview) => {
+            resetSession();
+            setImportPreview(importedPreview);
+          }}
+        />
+      ) : null}
 
       <CampaignComposeDialog
         open={composeDialogOpen}
@@ -321,6 +364,16 @@ export function CampaignBuilderPage({
           });
         }}
       />
-    </main>
+
+      {campaign ? (
+        <GoogleSheetsExportDialog
+          open={googleExportDialogOpen}
+          onOpenChange={setGoogleExportDialogOpen}
+          campaign={campaign}
+          recipients={allRecipients}
+          senderEmail={senderEmail}
+        />
+      ) : null}
+    </section>
   );
 }

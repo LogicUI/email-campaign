@@ -1,19 +1,21 @@
-import { AlertCircle, LoaderCircle, Plus, Send, WandSparkles, X } from "lucide-react";
+import { AlertCircle, LoaderCircle, Plus, Send, Sheet, WandSparkles, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { SendSummaryBarProps } from "@/types/send-summary-bar";
 
 export function SendSummaryBar(props: SendSummaryBarProps) {
   const {
     checkedCount,
+    canSaveResultsToGoogle,
     error,
     failedCount,
     isSending,
     onAddRecipient,
     onClearAllSelected,
+    onSaveResultsToGoogle,
     onRetryFailed,
     onSendSelected,
     progress,
@@ -27,7 +29,7 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
     <Card className="bg-white/85">
       <CardHeader className="gap-3 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
         <div>
-          <CardTitle className="text-xl">Send queue</CardTitle>
+          <h2 className="text-xl font-semibold leading-none tracking-tight">Send queue</h2>
           <CardDescription>
             Only checked, unsent recipients are included in the next batch.
           </CardDescription>
@@ -62,6 +64,16 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
             <WandSparkles className="h-4 w-4" />
             Re-check failed
           </Button>
+          {onSaveResultsToGoogle ? (
+            <Button
+              variant="outline"
+              onClick={onSaveResultsToGoogle}
+              disabled={!canSaveResultsToGoogle || isSending}
+            >
+              <Sheet className="h-4 w-4" />
+              Save results to Google Sheets
+            </Button>
+          ) : null}
         </div>
 
         <div className="space-y-2">
@@ -71,7 +83,7 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
             </span>
             <span>{progressValue}%</span>
           </div>
-          <Progress value={progressValue} />
+          <Progress value={progressValue} aria-label="Batch send progress" />
         </div>
 
         {isSending ? (

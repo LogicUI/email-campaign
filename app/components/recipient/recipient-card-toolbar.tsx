@@ -50,6 +50,7 @@ export function RecipientCardToolbar(props: RecipientCardToolbarProps) {
           <Checkbox
             checked={checked}
             disabled={disabled}
+            aria-label={sent ? "Recipient already sent" : "Select recipient for sending"}
             onCheckedChange={(value) => onCheckedChange(Boolean(value))}
           />
           <span className="text-sm font-medium">

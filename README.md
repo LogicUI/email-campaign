@@ -69,7 +69,7 @@ Create a `.env.local` file with:
 AUTH_SECRET=
 AUTH_GOOGLE_ID=
 AUTH_GOOGLE_SECRET=
-NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_URL=http://localhost:3001
 ```
 
 Notes:
@@ -77,7 +77,7 @@ Notes:
 - `AUTH_SECRET` is used to sign the session cookie.
 - `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` come from a Google OAuth web application.
 - `NEXTAUTH_URL` should match the app origin in each environment.
-- The Google OAuth app must include `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI for local development.
+- The Google OAuth app must include `http://localhost:3001/api/auth/callback/google` as an authorized redirect URI for local development.
 - LLM API keys are entered in the app UI and stored in browser localStorage for that browser only.
 
 ### Run the app
@@ -87,7 +87,7 @@ bun install
 bun run dev
 ```
 
-Then open `http://localhost:3000`. Unauthenticated users are redirected to `/login`.
+Then open `http://localhost:3001`. Unauthenticated users are redirected to `/login`.
 
 Notes:
 

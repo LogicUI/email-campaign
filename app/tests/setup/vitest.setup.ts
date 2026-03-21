@@ -11,7 +11,7 @@ beforeAll(() => {
   process.env.AUTH_SECRET = "test-auth-secret";
   process.env.AUTH_GOOGLE_ID = "google-client-id";
   process.env.AUTH_GOOGLE_SECRET = "google-client-secret";
-  process.env.NEXTAUTH_URL = "http://localhost:3000";
+  process.env.NEXTAUTH_URL = "http://localhost:3001";
 
   class ResizeObserverMock {
     observe() {}

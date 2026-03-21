@@ -139,7 +139,12 @@ export interface SavedListDetail extends SavedListSummary {
 export interface CampaignHistorySummary {
   id: string;
   name: string;
-  sourceType: "uploaded_list" | "reused_history" | "manual";
+  sourceType:
+    | "uploaded_list"
+    | "reused_history"
+    | "manual"
+    | "google_sheet"
+    | "database_table";
   savedListId?: string;
   sentCount: number;
   failedCount: number;

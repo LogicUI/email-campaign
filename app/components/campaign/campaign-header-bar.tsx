@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { CampaignHeaderBarProps } from "@/types/campaign-header-bar";
 
 export function CampaignHeaderBar(props: CampaignHeaderBarProps) {
-  const { campaign, senderEmail, totalRecipients } = props;
+  const { campaign, senderEmail } = props;
 
   return (
     <Card className="bg-white/85">

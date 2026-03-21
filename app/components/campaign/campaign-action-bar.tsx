@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Database, FileText, LogOut, Menu, Orbit, Upload, LayoutGrid } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
+import { performClientSignOut } from "@/core/auth/client-sign-out";
 import { AiSettingsDialog } from "@/components/settings/ai-settings-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,8 +26,25 @@ interface CampaignActionBarProps {
 
 export function CampaignActionBar(props: CampaignActionBarProps) {
   const { hasCampaign, onEditTemplate, onOpenDashboard, onOpenDatabaseSettings, onReupload } = props;
+  const router = useRouter();
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  async function handleSignOut() {
+    try {
+      setIsSigningOut(true);
+      setLogoutError(null);
+      await performClientSignOut({
+        navigator: router,
+      });
+    } catch (error) {
+      console.error("Failed to sign out.", error);
+      setLogoutError("Unable to log out. Refresh and try again.");
+      setIsSigningOut(false);
+    }
+  }
 
   return (
     <>
@@ -87,10 +105,11 @@ export function CampaignActionBar(props: CampaignActionBarProps) {
                 type="button"
                 variant="outline"
                 className="rounded-full bg-white/75"
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                disabled={isSigningOut}
+                onClick={() => void handleSignOut()}
               >
                 <LogOut className="h-4 w-4" />
-                Log out
+                {isSigningOut ? "Logging out..." : "Log out"}
               </Button>
             </div>
 
@@ -170,15 +189,24 @@ export function CampaignActionBar(props: CampaignActionBarProps) {
                     type="button"
                     variant="outline"
                     className="w-full justify-start rounded-2xl bg-white/70"
-                    onClick={() => signOut({ callbackUrl: "/login" })}
+                    disabled={isSigningOut}
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      void handleSignOut();
+                    }}
                   >
                     <LogOut className="h-4 w-4" />
-                    Log out
+                    {isSigningOut ? "Logging out..." : "Log out"}
                   </Button>
                 </div>
               </DialogContent>
             </Dialog>
           </div>
+          {logoutError ? (
+            <p className="border-t border-border/60 px-5 py-3 text-sm text-destructive">
+              {logoutError}
+            </p>
+          ) : null}
         </div>
       </div>
 

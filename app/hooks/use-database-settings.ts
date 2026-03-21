@@ -43,17 +43,24 @@ function buildConnectionFingerprint(connection: DatabaseSessionConnection) {
  * TanStack Mutation rather than hand-managed booleans.
  *
  * @param initialProfiles Saved connection profiles fetched from the server.
+ * @param options.loadTables When false, skips table discovery queries for
+ * contexts that only need session connect/disconnect controls.
  * @returns Dialog state plus actions for testing, connecting, and updating sync
  * preferences.
  */
-export function useDatabaseSettings(initialProfiles?: DatabaseConnectionProfile[]) {
+export function useDatabaseSettings(
+  initialProfiles?: DatabaseConnectionProfile[],
+  options?: {
+    loadTables?: boolean;
+  },
+) {
   const activeConnection = useDatabaseSessionStore((state) => state.activeConnection);
   const setActiveConnection = useDatabaseSessionStore((state) => state.setActiveConnection);
   const clearStoredActiveConnection = useDatabaseSessionStore((state) => state.clearActiveConnection);
   const testConnectionMutation = useTestDatabaseConnectionMutation();
   const connectConnectionMutation = useConnectDatabaseMutation();
   const updateSyncModeMutation = useUpdateDatabaseConnectionProfileMutation();
-  const tablesQuery = useDatabaseTablesQuery(activeConnection);
+  const tablesQuery = useDatabaseTablesQuery(activeConnection, options?.loadTables ?? true);
   const [testedConnectionFingerprint, setTestedConnectionFingerprint] = useState<string | null>(null);
   const [successState, setSuccessState] = useState<SuccessState>(null);
   const profiles = initialProfiles ?? [];

@@ -1,5 +1,3 @@
-"use client";
-
 import { detectEmailColumn } from "@/core/excel/detect-email-column";
 import { detectRecipientColumn } from "@/core/excel/detect-recipient-column";
 import { mapPreviewRows } from "@/core/excel/map-preview-rows";
@@ -74,6 +72,11 @@ export function buildImportPreview(params: {
   preferredEmailColumn?: string;
   preferredRecipientColumn?: string;
   savedListId?: string;
+  sourceType?: ImportPreview["sourceType"];
+  googleSpreadsheetId?: string;
+  googleSpreadsheetUrl?: string;
+  databaseConnectionLabel?: string;
+  databaseTableName?: string;
   sourceFiles: ImportSourceFile[];
   sourceRows: ImportSourceRow[];
 }): ImportPreview {
@@ -81,6 +84,11 @@ export function buildImportPreview(params: {
     preferredEmailColumn,
     preferredRecipientColumn,
     savedListId,
+    sourceType,
+    googleSpreadsheetId,
+    googleSpreadsheetUrl,
+    databaseConnectionLabel,
+    databaseTableName,
     sourceFiles,
     sourceRows,
   } = params;
@@ -108,6 +116,11 @@ export function buildImportPreview(params: {
     fileName: summarizeFileNames(sourceFiles),
     sheetName: sourceFiles.length === 1 ? sourceFiles[0].sheetName : undefined,
     savedListId,
+    sourceType,
+    googleSpreadsheetId,
+    googleSpreadsheetUrl,
+    databaseConnectionLabel,
+    databaseTableName,
     sourceFiles,
     sourceRows,
     headers,
@@ -143,6 +156,11 @@ export function mergeImportPreviews(
     preferredEmailColumn: preferredColumns?.emailColumn,
     preferredRecipientColumn: preferredColumns?.recipientColumn,
     savedListId: previews.find((preview) => preview.savedListId)?.savedListId,
+    sourceType: previews[0]?.sourceType,
+    googleSpreadsheetId: previews.find((preview) => preview.googleSpreadsheetId)?.googleSpreadsheetId,
+    googleSpreadsheetUrl: previews.find((preview) => preview.googleSpreadsheetUrl)?.googleSpreadsheetUrl,
+    databaseConnectionLabel: previews.find((preview) => preview.databaseConnectionLabel)?.databaseConnectionLabel,
+    databaseTableName: previews.find((preview) => preview.databaseTableName)?.databaseTableName,
     sourceFiles: previews.flatMap((preview) => preview.sourceFiles),
     sourceRows: previews.flatMap((preview) => preview.sourceRows),
   });

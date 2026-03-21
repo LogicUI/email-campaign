@@ -23,7 +23,11 @@ export function RecipientPaginationBar(props: RecipientPaginationBarProps) {
         Page {currentPage} of {totalPages} · {totalRecipients} {recipientLabel}
       </div>
       <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor="recipient-page-size" className="text-sm font-medium text-muted-foreground">
+          Per page
+        </label>
         <Select
+          id="recipient-page-size"
           className="w-[110px]"
           value={String(pageSize)}
           onChange={(event) => onPageSizeChange(Number(event.target.value))}

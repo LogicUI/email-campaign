@@ -11,6 +11,7 @@ import type {
   DatabaseSessionConnection,
   DatabaseTableRef,
 } from "@/types/database";
+import type { ImportPreview } from "@/types/campaign";
 
 export function listDatabaseTables(connection: DatabaseSessionConnection) {
   return requestApi<{ tables: DatabaseTableRef[] }>({
@@ -67,6 +68,20 @@ export function describeDatabaseTable(
       table,
     },
   });
+}
+
+export function importDatabaseTablePreview(
+  connection: DatabaseSessionConnection,
+  table: DatabaseTableRef,
+) {
+  return requestApi<{ preview: ImportPreview }>({
+    method: "POST",
+    url: "/api/database/tables/import-preview",
+    data: {
+      connection,
+      table,
+    },
+  }).then((data) => data.preview);
 }
 
 export function saveDatabaseImport(payload: DatabaseSaveImportPayload) {

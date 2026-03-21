@@ -378,6 +378,33 @@ export async function describePostgresTable(params: {
 }
 
 /**
+ * Reads rows from an external table so they can be normalized into a campaign import preview.
+ *
+ * This is the read-side counterpart to the existing save/import database flow. It allows
+ * Supabase/Postgres tables to become lead sources directly, without requiring an XLS export.
+ *
+ * @param params.connection Active browser-session connection configuration.
+ * @param params.schema Source schema name.
+ * @param params.table Source table name.
+ * @returns Raw table rows as plain objects.
+ */
+export async function fetchRowsFromPostgresTable(params: {
+  connection: DatabaseSessionConnection;
+  schema: string;
+  table: string;
+}) {
+  return withExternalDb(params.connection.connectionString, async (db) => {
+    const result = (await db.execute(
+      sql.raw(
+        `select * from ${quoteIdentifier(params.schema)}.${quoteIdentifier(params.table)}`,
+      ),
+    )) as { rows: Array<Record<string, unknown>> };
+
+    return result.rows;
+  });
+}
+
+/**
  * Infers candidate destination columns from the current import preview.
  *
  * This wrapper exists so the connector layer can expose database-specific schema

@@ -1,26 +1,24 @@
-import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DatabaseSettingsDialog } from "@/components/settings/database-settings-dialog";
+import { useDatabaseSessionStore } from "@/store/database-session-store";
 import type { ImportPreview } from "@/types/campaign";
 
 vi.mock("@/hooks/use-database-settings", () => ({
   useDatabaseSettings: vi.fn(),
 }));
 
-vi.mock("@/hooks/use-campaign-sync", () => ({
-  useCampaignSync: vi.fn(),
-}));
-
 vi.mock("@/tanStack/database", () => ({
   useDescribeDatabaseTableMutation: vi.fn(),
+  useSaveDatabaseImportMutation: vi.fn(),
 }));
 
 const { useDatabaseSettings } = await import("@/hooks/use-database-settings");
-const { useCampaignSync } = await import("@/hooks/use-campaign-sync");
-const { useDescribeDatabaseTableMutation } = await import("@/tanStack/database");
+const { useDescribeDatabaseTableMutation, useSaveDatabaseImportMutation } = await import(
+  "@/tanStack/database"
+);
 
 function buildDatabaseSettingsState(overrides: Record<string, unknown> = {}) {
   return {
@@ -98,16 +96,10 @@ function buildImportPreview(): ImportPreview {
 }
 
 describe("DatabaseSettingsDialog", () => {
-  const syncState = {
-    canSyncCurrentCampaign: false,
-    error: null,
-    isSyncing: false,
-    lastSyncedAt: undefined,
-    needsSync: false,
-    syncCurrentCampaign: vi.fn(),
-  };
-
   beforeEach(() => {
+    useDatabaseSessionStore.getState().clearActiveConnection();
+    useDatabaseSessionStore.getState().clearEditedImportSchema();
+
     vi.mocked(useDescribeDatabaseTableMutation).mockReturnValue({
       error: null,
       isPending: false,
@@ -127,23 +119,123 @@ describe("DatabaseSettingsDialog", () => {
       }),
       reset: vi.fn(),
     } as never);
+    vi.mocked(useSaveDatabaseImportMutation).mockReturnValue({
+      error: null,
+      isPending: false,
+      mutateAsync: vi.fn(),
+      reset: vi.fn(),
+    } as never);
   });
 
   it("renders separate test and connect actions", () => {
     vi.mocked(useDatabaseSettings).mockReturnValue(buildDatabaseSettingsState() as never);
-    vi.mocked(useCampaignSync).mockReturnValue(syncState as never);
 
-    render(
-      <DatabaseSettingsDialog
-        open
-        onOpenChange={vi.fn()}
-        initialProfiles={[]}
-      />,
-    );
+    render(<DatabaseSettingsDialog open onOpenChange={vi.fn()} initialProfiles={[]} />);
 
     expect(screen.getByRole("button", { name: "Test connection" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Disconnect browser session" })).toBeDisabled();
+  });
+
+  it("does not hit a maximum update depth loop when import mode opens", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    vi.mocked(useDatabaseSettings).mockImplementation(
+      () =>
+        buildDatabaseSettingsState({
+          activeConnection: {
+            provider: "supabase",
+            label: "Primary Supabase",
+            connectionString: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+            profileId: "dbprofile_1",
+            syncMode: "auto",
+          },
+          profiles: [
+            {
+              id: "dbprofile_1",
+              provider: "supabase",
+              label: "Primary Supabase",
+              displayHost: "127.0.0.1",
+              displayDatabaseName: "postgres",
+              lastSelectedTable: "public.leads",
+              syncMode: "auto",
+              createdAt: "2026-03-21T00:00:00.000Z",
+              updatedAt: "2026-03-21T00:00:00.000Z",
+              lastUsedAt: "2026-03-21T00:00:00.000Z",
+            },
+          ],
+          tables: [
+            {
+              schema: "public",
+              name: "leads",
+              displayName: "public.leads",
+            },
+          ],
+        }) as never,
+    );
+    vi.mocked(useDescribeDatabaseTableMutation).mockImplementation(
+      () =>
+        ({
+          error: null,
+          isPending: false,
+          mutateAsync: vi.fn().mockResolvedValue({
+            schema: {
+              table: {
+                schema: "public",
+                name: "leads",
+                displayName: "public.leads",
+              },
+              columns: [
+                { name: "email", type: "text", nullable: false },
+                { name: "clinic_name", type: "text", nullable: true },
+              ],
+            },
+            suggestedMappings: [],
+          }),
+          reset: vi.fn(),
+        }) as never,
+    );
+    vi.mocked(useSaveDatabaseImportMutation).mockImplementation(
+      () =>
+        ({
+          error: null,
+          isPending: false,
+          mutateAsync: vi.fn(),
+          reset: vi.fn(),
+        }) as never,
+    );
+
+    const { rerender } = render(
+      <DatabaseSettingsDialog
+        open
+        onOpenChange={vi.fn()}
+        initialProfiles={[]}
+        origin="database-import"
+        importPreview={buildImportPreview()}
+      />,
+    );
+
+    rerender(
+      <DatabaseSettingsDialog
+        open
+        onOpenChange={vi.fn()}
+        initialProfiles={[]}
+        origin="database-import"
+        importPreview={buildImportPreview()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Connect & Save Import")).toBeInTheDocument();
+    });
+
+    expect(
+      consoleError.mock.calls.some((call) =>
+        call.some((value) => String(value).includes("Maximum update depth exceeded")),
+      ),
+    ).toBe(false);
+
+    consoleError.mockRestore();
   });
 
   it("enables connect only when the hook says the current draft passed a test", async () => {
@@ -154,15 +246,8 @@ describe("DatabaseSettingsDialog", () => {
         isConnectionReadyToConnect: vi.fn().mockReturnValue(true),
       }) as never,
     );
-    vi.mocked(useCampaignSync).mockReturnValue(syncState as never);
 
-    render(
-      <DatabaseSettingsDialog
-        open
-        onOpenChange={vi.fn()}
-        initialProfiles={[]}
-      />,
-    );
+    render(<DatabaseSettingsDialog open onOpenChange={vi.fn()} initialProfiles={[]} />);
 
     await user.type(
       screen.getByLabelText("Connection string"),
@@ -181,17 +266,10 @@ describe("DatabaseSettingsDialog", () => {
         invalidateConnectionTest,
       }) as never,
     );
-    vi.mocked(useCampaignSync).mockReturnValue(syncState as never);
 
-    render(
-      <DatabaseSettingsDialog
-        open
-        onOpenChange={vi.fn()}
-        initialProfiles={[]}
-      />,
-    );
+    render(<DatabaseSettingsDialog open onOpenChange={vi.fn()} initialProfiles={[]} />);
 
-    await user.type(screen.getByLabelText("Connection label"), " 2");
+    await user.type(screen.getByLabelText("Connection string"), "postgresql://db.example.com");
 
     expect(invalidateConnectionTest).toHaveBeenCalled();
   });
@@ -207,7 +285,6 @@ describe("DatabaseSettingsDialog", () => {
         isConnectionReadyToConnect: vi.fn().mockReturnValue(true),
       }) as never,
     );
-    vi.mocked(useCampaignSync).mockReturnValue(syncState as never);
 
     render(
       <DatabaseSettingsDialog
@@ -226,7 +303,7 @@ describe("DatabaseSettingsDialog", () => {
 
     expect(connectConnection).toHaveBeenCalledWith({
       provider: "supabase",
-      label: "Primary Supabase",
+      label: "Supabase connection · 127.0.0.1",
       connectionString: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
       syncMode: "auto",
     });
@@ -241,67 +318,53 @@ describe("DatabaseSettingsDialog", () => {
           "Connection test passed. Click Connect to use this database in the current browser session.",
       }) as never,
     );
-    vi.mocked(useCampaignSync).mockReturnValue(syncState as never);
 
-    render(
-      <DatabaseSettingsDialog
-        open
-        onOpenChange={vi.fn()}
-        initialProfiles={[]}
-      />,
-    );
+    render(<DatabaseSettingsDialog open onOpenChange={vi.fn()} initialProfiles={[]} />);
 
     expect(screen.getByText("Connection test passed")).toBeInTheDocument();
   });
 
-  it("renders explicit Supabase pooler guidance", () => {
-    vi.mocked(useDatabaseSettings).mockReturnValue(buildDatabaseSettingsState() as never);
-    vi.mocked(useCampaignSync).mockReturnValue(syncState as never);
-
-    render(
-      <DatabaseSettingsDialog
-        open
-        onOpenChange={vi.fn()}
-        initialProfiles={[]}
-      />,
-    );
-
-    expect(screen.getByText("Supabase pooler supported")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /postgresql:\/\/postgres\.<project-ref>:<password>@aws-0-<region>\.pooler\.supabase\.com:5432\/postgres/i,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Supabase pooler URLs are supported\. Paste the Session pooler DSN/i),
-    ).toBeInTheDocument();
-  });
-
-  it("keeps sync mode available for a live session even before a profile id is repaired", () => {
+  it("renders saved profiles and tables in general settings", () => {
     vi.mocked(useDatabaseSettings).mockReturnValue(
       buildDatabaseSettingsState({
         activeConnection: {
           provider: "supabase",
-          label: "Primary Supabase",
+          label: "Supabase connection · 127.0.0.1",
           connectionString: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
           syncMode: "auto",
         },
+        profiles: [
+          {
+            id: "dbprofile_1",
+            provider: "supabase",
+            label: "Primary Supabase",
+            displayHost: "127.0.0.1",
+            displayDatabaseName: "postgres",
+            lastSelectedTable: "public.leads",
+            syncMode: "auto",
+            createdAt: "2026-03-21T00:00:00.000Z",
+            updatedAt: "2026-03-21T00:00:00.000Z",
+            lastUsedAt: "2026-03-21T00:00:00.000Z",
+          },
+        ],
+        tables: [
+          {
+            schema: "public",
+            name: "leads",
+            displayName: "public.leads",
+          },
+        ],
       }) as never,
     );
-    vi.mocked(useCampaignSync).mockReturnValue(syncState as never);
 
-    render(
-      <DatabaseSettingsDialog
-        open
-        onOpenChange={vi.fn()}
-        initialProfiles={[]}
-      />,
-    );
+    render(<DatabaseSettingsDialog open onOpenChange={vi.fn()} initialProfiles={[]} />);
 
-    expect(screen.getByLabelText("Send history sync")).toBeEnabled();
+    expect(screen.getByText("Saved connection profiles")).toBeInTheDocument();
+    expect(screen.getByText("Available tables")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Connection label")).not.toBeInTheDocument();
   });
 
-  it("renders uploaded spreadsheet and destination previews during the import flow", async () => {
+  it("renders uploaded spreadsheet preview and import destination controls during the import flow", async () => {
     const describeMutateAsync = vi.fn().mockResolvedValue({
       schema: {
         table: {
@@ -355,7 +418,6 @@ describe("DatabaseSettingsDialog", () => {
         ],
       }) as never,
     );
-    vi.mocked(useCampaignSync).mockReturnValue(syncState as never);
 
     render(
       <DatabaseSettingsDialog
@@ -378,12 +440,113 @@ describe("DatabaseSettingsDialog", () => {
       });
     });
 
+    expect(screen.getByLabelText("Destination")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Append to existing table (check duplicates)")).not.toBeInTheDocument();
+    expect(screen.getByText("Saved connection profiles")).toBeInTheDocument();
+    expect(screen.getByText("Mapped sample preview")).toBeInTheDocument();
+  });
+
+  it("saves the import from the import flow and passes the response back", async () => {
+    const user = userEvent.setup();
+    const mutateAsync = vi.fn().mockResolvedValue({
+      savedList: {
+        id: "saved_list_1",
+        name: "leads.xlsx list",
+        sourceFileLabel: "leads.xlsx",
+        rowCount: 2,
+        validRowCount: 1,
+        invalidRowCount: 1,
+        createdAt: "2026-03-21T00:00:00.000Z",
+        updatedAt: "2026-03-21T00:00:00.000Z",
+        schemaSnapshot: {
+          headers: ["email", "clinic_name", "status"],
+        },
+        rows: [],
+      },
+      destinationTableName: "public.leads",
+      sourceRowCount: 2,
+      eligibleRowCount: 1,
+      insertedCount: 1,
+      skippedRowCount: 1,
+      tableSchema: null,
+    });
+    const onImportSaved = vi.fn();
+
+    vi.mocked(useSaveDatabaseImportMutation).mockReturnValue({
+      error: null,
+      isPending: false,
+      mutateAsync,
+      reset: vi.fn(),
+    } as never);
+    vi.mocked(useDatabaseSettings).mockReturnValue(
+      buildDatabaseSettingsState({
+        activeConnection: {
+          provider: "supabase",
+          label: "Primary Supabase",
+          connectionString: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+          profileId: "dbprofile_1",
+          syncMode: "auto",
+        },
+        profiles: [
+          {
+            id: "dbprofile_1",
+            provider: "supabase",
+            label: "Primary Supabase",
+            displayHost: "127.0.0.1",
+            displayDatabaseName: "postgres",
+            lastSelectedTable: "public.leads",
+            syncMode: "auto",
+            createdAt: "2026-03-21T00:00:00.000Z",
+            updatedAt: "2026-03-21T00:00:00.000Z",
+            lastUsedAt: "2026-03-21T00:00:00.000Z",
+          },
+        ],
+        tables: [
+          {
+            schema: "public",
+            name: "leads",
+            displayName: "public.leads",
+          },
+        ],
+      }) as never,
+    );
+
+    render(
+      <DatabaseSettingsDialog
+        open
+        onOpenChange={vi.fn()}
+        initialProfiles={[]}
+        origin="database-import"
+        importPreview={buildImportPreview()}
+        onImportSaved={onImportSaved}
+      />,
+    );
+
     await waitFor(() => {
-      expect(screen.getByText("Table schema")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save import" })).toBeEnabled();
     });
 
-    expect(screen.getByText("Destination preview")).toBeInTheDocument();
-    expect(screen.getAllByText("clinic_name").length).toBeGreaterThan(0);
-    expect(screen.getByText("Mapped sample rows")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save import" }));
+
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "existing_table",
+        saveName: "leads.xlsx list",
+        existingTable: {
+          schema: "public",
+          name: "leads",
+          displayName: "public.leads",
+        },
+      }),
+    );
+    await screen.findByText("Inserted 1 row(s) into public.leads.");
+    expect(onImportSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        savedList: expect.objectContaining({
+          id: "saved_list_1",
+        }),
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
   });
 });

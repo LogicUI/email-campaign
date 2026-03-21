@@ -83,6 +83,24 @@ describe("useDatabaseSettings", () => {
       mutateAsync: vi.fn(),
       reset: vi.fn(),
     } as never);
+    vi.mocked(useConnectDatabaseMutation).mockReturnValue({
+      error: null,
+      isPending: false,
+      mutateAsync: vi.fn(),
+      reset: vi.fn(),
+    } as never);
+    vi.mocked(useUpdateDatabaseConnectionProfileMutation).mockReturnValue({
+      error: null,
+      isPending: false,
+      mutateAsync: vi.fn(),
+      reset: vi.fn(),
+    } as never);
+  });
+
+  it("can skip table discovery for session-only settings flows", () => {
+    renderHook(() => useDatabaseSettings([], { loadTables: false }));
+
+    expect(useDatabaseTablesQuery).toHaveBeenCalledWith(sessionState.activeConnection, false);
   });
 
   it("reconnects transparently when the saved profile id is stale during sync-mode updates", async () => {

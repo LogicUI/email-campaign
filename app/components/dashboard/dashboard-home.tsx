@@ -5,7 +5,7 @@ import { Database, FolderClock, Send } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { DashboardSummaryResponseData } from "@/types/database";
 
 export function DashboardHome(props: {
@@ -71,10 +71,10 @@ export function DashboardHome(props: {
         <Card className="rounded-[1.75rem]">
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <h2 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
                 <FolderClock className="h-4 w-4" />
                 Saved recipient lists
-              </CardTitle>
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Stored imports from your uploaded Excel files.
               </p>
@@ -116,10 +116,10 @@ export function DashboardHome(props: {
         <Card className="rounded-[1.75rem]">
           <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <h2 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
                 <Send className="h-4 w-4" />
                 Sent campaign history
-              </CardTitle>
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Queryable send runs that can be reopened into the workspace.
               </p>

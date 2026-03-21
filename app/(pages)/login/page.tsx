@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { getServerAuthSession } from "@/core/auth/session";
 import type { LoginPageProps } from "@/types/auth";
 
@@ -30,7 +30,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               Protected workspace
             </Badge>
             <div className="space-y-2">
-              <CardTitle className="text-3xl tracking-tight">Sign in to EmailAI</CardTitle>
+              <h1 className="text-3xl font-semibold tracking-tight">Sign in to EmailAI</h1>
               <CardDescription className="text-base leading-7">
                 Use your Google account to access the campaign workspace. Your Google
                 email becomes the sender identity for Gmail-powered email sends.

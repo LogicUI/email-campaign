@@ -208,10 +208,8 @@ export function useRecipientRegenerate(recipientId: string) {
       return "blocked";
     }
   }, [
-    applyGeneratedBody,
     campaign,
     consumeRegenerateStream,
-    failRecipientRegeneration,
     recipient,
     recipientId,
     resolvedActiveProvider.apiKey,

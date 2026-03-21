@@ -12,12 +12,10 @@ import type {
   CampaignStoreUiState,
 } from "@/types/campaign-store";
 import type {
-  Campaign,
   CampaignRecipient,
   GenerationLogItem,
   ImportPreview,
 } from "@/types/campaign";
-import type { BulkSendResultItem } from "@/types/api";
 
 const initialUiState: CampaignStoreUiState = {
   composeDialogOpen: false,
@@ -47,6 +45,11 @@ function rebuildImportPreview(
     preferredEmailColumn: params.emailColumn || undefined,
     preferredRecipientColumn: params.recipientColumn || undefined,
     savedListId: preview.savedListId,
+    sourceType: preview.sourceType,
+    googleSpreadsheetId: preview.googleSpreadsheetId,
+    googleSpreadsheetUrl: preview.googleSpreadsheetUrl,
+    databaseConnectionLabel: preview.databaseConnectionLabel,
+    databaseTableName: preview.databaseTableName,
     sourceFiles: preview.sourceFiles,
     sourceRows: preview.sourceRows,
   });
@@ -189,10 +192,22 @@ export const useCampaignStore = create<CampaignStore>()(
               globalSubject,
               globalBodyTemplate,
               createdAt: new Date().toISOString(),
-              sourceType: sourceType ?? (savedListId || preview.savedListId ? "uploaded_list" : "manual"),
+              sourceType:
+                sourceType ??
+                (preview.googleSpreadsheetId
+                  ? "google_sheet"
+                  : preview.databaseTableName
+                    ? "database_table"
+                    : savedListId || preview.savedListId
+                      ? "uploaded_list"
+                      : "manual"),
               savedListId: savedListId ?? preview.savedListId,
               importedFileName: preview.fileName ?? "upload",
               importedSheetName: preview.sheetName,
+              googleSpreadsheetId: preview.googleSpreadsheetId,
+              googleSpreadsheetUrl: preview.googleSpreadsheetUrl,
+              databaseConnectionLabel: preview.databaseConnectionLabel,
+              databaseTableName: preview.databaseTableName,
               detectedEmailColumn: preview.selectedEmailColumn,
               detectedRecipientColumn: preview.selectedRecipientColumn,
               totalRows: preview.rows.length,

@@ -1,8 +1,7 @@
 "use client";
-"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Database, PlugZap, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Database, Eye, PlugZap, Table2 } from "lucide-react";
 
 import {
   buildAutomaticExistingTableMappings,
@@ -14,7 +13,6 @@ import { ImportPreviewTable } from "@/components/data-import/import-preview-tabl
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +23,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select } from "@/components/ui/select";
 import {
@@ -36,27 +33,57 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCampaignSync } from "@/hooks/use-campaign-sync";
 import { useDatabaseSettings } from "@/hooks/use-database-settings";
-import { useDescribeDatabaseTableMutation } from "@/tanStack/database";
+import {
+  useDescribeDatabaseTableMutation,
+  useSaveDatabaseImportMutation,
+} from "@/tanStack/database";
 import { useDatabaseSessionStore } from "@/store/database-session-store";
 import type {
   DatabaseConnectionProfile,
+  DatabaseSaveImportPayload,
+  DatabaseSaveImportResponseData,
+  DatabaseSaveMode,
   DatabaseSettingsOpenContext,
   DatabaseSessionConnection,
+  DatabaseTableRef,
   DatabaseTableSchema,
   ExternalDatabaseProvider,
   InferredDatabaseColumn,
 } from "@/types/database";
 import type { ImportPreview } from "@/types/campaign";
 
+function buildConnectionLabel(
+  provider: ExternalDatabaseProvider,
+  connectionString: string,
+) {
+  const providerLabel = provider === "supabase" ? "Supabase connection" : "Postgres connection";
+
+  try {
+    const host = new URL(connectionString).hostname.trim();
+    return host ? `${providerLabel} · ${host}` : providerLabel;
+  } catch {
+    return providerLabel;
+  }
+}
+
+function buildTableName(defaultLabel?: string) {
+  const base = (defaultLabel ?? "uploaded_recipients")
+    .replace(/\.[^/.]+$/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return `${base || "uploaded_recipients"}_${new Date().toISOString().slice(0, 10).replace(/-/g, "_")}`;
+}
+
 /**
  * Main database configuration dialog for the workspace.
  *
- * This component brings together connection testing, saved profile visibility,
- * table discovery, and campaign-history sync controls in one place. It exists so
- * database behavior stays discoverable from the same action bar as `Reupload new`
- * without introducing another global header or route.
+ * This component manages browser-session database connectivity and, for import
+ * flows, the additional table selection/configuration steps required to save data
+ * into an external database.
  *
  * @param props.open Whether the dialog is open.
  * @param props.onOpenChange Standard dialog open-state handler.
@@ -72,6 +99,7 @@ export function DatabaseSettingsDialog(props: {
   importPreview?: ImportPreview | null;
   origin?: DatabaseSettingsOpenContext["source"];
   onProfilesUpdated?: () => Promise<void> | void;
+  onImportSaved?: (result: DatabaseSaveImportResponseData) => void;
 }) {
   const {
     open,
@@ -79,13 +107,15 @@ export function DatabaseSettingsDialog(props: {
     initialProfiles,
     importPreview = null,
     origin = "general",
+    onImportSaved,
     onProfilesUpdated,
   } = props;
+  const isImportFlow = origin === "database-import" && Boolean(importPreview);
   const {
     activeConnection,
     clearActiveConnection,
     connectConnection,
-    error,
+    error: connectionError,
     invalidateConnectionTest,
     isConnectingConnection,
     isConnectionReadyToConnect,
@@ -96,47 +126,25 @@ export function DatabaseSettingsDialog(props: {
     successMessage,
     tables,
     testConnection,
-    updateSyncMode,
-  } = useDatabaseSettings(initialProfiles);
-  const describePreviewTableMutation = useDescribeDatabaseTableMutation(activeConnection);
-  const syncState = useCampaignSync({
-    onSavedDataChange: onProfilesUpdated,
+  } = useDatabaseSettings(initialProfiles, {
+    loadTables: isImportFlow,
   });
-
-  const isImportFlow = origin === "database-import" && Boolean(importPreview);
-
-  const {
-    canSyncCurrentCampaign,
-    error: syncError,
-    isSyncing,
-    lastSyncedAt,
-    needsSync,
-    syncCurrentCampaign,
-  } = isImportFlow
-    ? {
-        canSyncCurrentCampaign: false,
-        error: undefined,
-        isSyncing: false,
-        lastSyncedAt: undefined,
-        needsSync: false,
-        syncCurrentCampaign: () => Promise.resolve(),
-      }
-    : syncState;
+  const describeTableMutation = useDescribeDatabaseTableMutation(activeConnection);
+  const saveImportMutation = useSaveDatabaseImportMutation();
   const [provider, setProvider] = useState<ExternalDatabaseProvider>("supabase");
   const [label, setLabel] = useState("Primary Supabase");
   const [connectionString, setConnectionString] = useState("");
-  const [destinationPreviewSchema, setDestinationPreviewSchema] =
-    useState<DatabaseTableSchema | null>(null);
-  const loadedDestinationPreviewKeyRef = useRef("");
   const [editedSchemaColumns, setEditedSchemaColumns] = useState<InferredDatabaseColumn[]>([]);
-  const [showConnectionForm, setShowConnectionForm] = useState(false);
-  const [importMode, setImportMode] = useState<{
-    type: "existing" | "new" | "append" | "app_only";
-    tableId?: string;
-  }>({ type: "app_only" });
-  const [checkDuplicates, setCheckDuplicates] = useState(true);
+  const [saveName, setSaveName] = useState("");
+  const [saveMode, setSaveMode] = useState<DatabaseSaveMode>("app_only");
+  const [selectedTable, setSelectedTable] = useState("");
+  const [selectedSchema, setSelectedSchema] = useState<DatabaseTableSchema | null>(null);
+  const [mappings, setMappings] = useState<Record<string, string>>({});
   const [newTableSchemaName, setNewTableSchemaName] = useState("public");
   const [newTableName, setNewTableName] = useState("");
+  const [saveResult, setSaveResult] = useState<DatabaseSaveImportResponseData | null>(null);
+  const wasOpenRef = useRef(open);
+  const importInitKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -148,42 +156,75 @@ export function DatabaseSettingsDialog(props: {
       setLabel(activeConnection.label);
       setConnectionString(activeConnection.connectionString);
     }
+  }, [activeConnection, open]);
 
-    // Initialize schema when opening from import flow
-    if (origin === "database-import" && importPreview) {
-      const inferred = inferDatabaseColumns({
-        headers: importPreview.headers,
-        rows: importPreview.rows.map((r) => r.raw),
-      });
-      setEditedSchemaColumns(inferred);
-      useDatabaseSessionStore.getState().setEditedImportSchema(inferred);
-
-      // Initialize table name
-      if (!newTableName) {
-        const base = (importPreview.fileName ?? "uploaded_recipients")
-          .replace(/\.[^/.]+$/, "")
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "_")
-          .replace(/^_+|_+$/g, "");
-        setNewTableName(`${base || "uploaded_recipients"}_${new Date().toISOString().slice(0, 10).replace(/-/g, "_")}`);
-      }
+  useEffect(() => {
+    if (!open) {
+      importInitKeyRef.current = null;
+      return;
     }
-  }, [activeConnection, open, origin, importPreview, newTableName]);
 
+    if (!isImportFlow || !importPreview) {
+      return;
+    }
+
+    const didOpen = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    const importInitKey = JSON.stringify([
+      importPreview.fileName ?? "",
+      importPreview.sourceFiles.map((file) => `${file.fileName}:${file.sheetName ?? ""}`).join("|"),
+      importPreview.headers.join("|"),
+      importPreview.rows.length,
+    ]);
+
+    if (!didOpen && importInitKeyRef.current === importInitKey) {
+      return;
+    }
+    importInitKeyRef.current = importInitKey;
+
+    const storedSchema = useDatabaseSessionStore.getState().editedImportSchema;
+    const inferredSchema =
+      storedSchema && storedSchema.length > 0
+        ? storedSchema
+        : inferDatabaseColumns({
+            headers: importPreview.headers,
+            rows: importPreview.rows.map((row) => row.raw),
+          });
+
+    setEditedSchemaColumns(inferredSchema);
+    setSaveName(`${importPreview.fileName ?? "Uploaded recipients"} list`);
+    setSaveMode(activeConnection ? "existing_table" : "app_only");
+    setSelectedTable("");
+    setSelectedSchema(null);
+    setMappings({});
+    setNewTableSchemaName("public");
+    setNewTableName(buildTableName(importPreview.fileName));
+    setSaveResult(null);
+    describeTableMutation.reset();
+    saveImportMutation.reset();
+  }, [
+    activeConnection,
+    importPreview,
+    isImportFlow,
+    open,
+  ]);
+
+  const derivedLabel = useMemo(
+    () => (isImportFlow ? label : buildConnectionLabel(provider, connectionString)),
+    [connectionString, isImportFlow, label, provider],
+  );
   const draftConnection: DatabaseSessionConnection = {
     provider,
     connectionString,
-    label,
+    label: derivedLabel,
     syncMode: activeConnection?.syncMode ?? "auto",
   };
   const isDraftConnectionReady = isConnectionReadyToConnect(draftConnection);
   const isCurrentDraftConnected =
     !!activeConnection &&
     activeConnection.provider === provider &&
-    activeConnection.label.trim() === label.trim() &&
+    activeConnection.label.trim() === draftConnection.label.trim() &&
     activeConnection.connectionString.trim() === connectionString.trim();
-  const shouldShowImportPreview = open && origin === "database-import" && Boolean(importPreview);
   const activeProfile = useMemo(() => {
     if (!activeConnection) {
       return null;
@@ -198,47 +239,15 @@ export function DatabaseSettingsDialog(props: {
       null
     );
   }, [activeConnection, profiles]);
-  const previewDestinationTable = useMemo(() => {
-    if (!shouldShowImportPreview || !activeConnection || isLoadingTables || tables.length === 0) {
-      return null;
-    }
-
-    if (activeProfile?.lastSelectedTable) {
-      const preferredTable = tables.find(
-        (table) => table.displayName === activeProfile.lastSelectedTable,
-      );
-
-      if (preferredTable) {
-        return preferredTable;
-      }
-    }
-
-    return tables[0] ?? null;
-  }, [
-    activeConnection,
-    activeProfile?.lastSelectedTable,
-    isLoadingTables,
-    shouldShowImportPreview,
-    tables,
-  ]);
-  const previewDestinationKey =
-    activeConnection && previewDestinationTable
-      ? `${activeConnection.profileId ?? activeConnection.label}:${previewDestinationTable.displayName}`
-      : "";
-  const isFallbackPreviewTable =
-    Boolean(previewDestinationTable) &&
-    previewDestinationTable?.displayName !== activeProfile?.lastSelectedTable;
-  const destinationPreview = useMemo(() => {
-    if (!importPreview || !destinationPreviewSchema) {
-      return null;
-    }
-
-    return buildExistingTablePreview(
-      importPreview,
-      destinationPreviewSchema,
-      buildAutomaticExistingTableMappings(importPreview, destinationPreviewSchema),
-    );
-  }, [destinationPreviewSchema, importPreview]);
+  const selectedTableRef = useMemo<DatabaseTableRef | null>(
+    () => tables.find((table) => table.displayName === selectedTable) ?? null,
+    [selectedTable, tables],
+  );
+  const eligibleRows = useMemo(
+    () => importPreview?.rows.filter((row) => row.isValid) ?? [],
+    [importPreview],
+  );
+  const invalidRowsCount = importPreview ? importPreview.rows.length - eligibleRows.length : 0;
 
   const samplePreviewRows = useMemo(() => {
     if (!importPreview || !editedSchemaColumns) {
@@ -267,55 +276,105 @@ export function DatabaseSettingsDialog(props: {
       }));
   }, [editedSchemaColumns]);
 
-  const resetPreviewTableMutation = describePreviewTableMutation.reset;
-  const runPreviewTableDescribe = describePreviewTableMutation.mutateAsync;
+  const loadSchema = useCallback(
+    async (table: DatabaseTableRef) => {
+      if (!activeConnection || !importPreview) {
+        return;
+      }
+
+      try {
+        describeTableMutation.reset();
+        const payload = await describeTableMutation.mutateAsync(table);
+        setSelectedSchema(payload.schema);
+        setMappings(buildAutomaticExistingTableMappings(importPreview, payload.schema));
+      } catch {
+        return;
+      }
+    },
+    [activeConnection, describeTableMutation, importPreview],
+  );
 
   useEffect(() => {
-    if (!shouldShowImportPreview) {
-      setDestinationPreviewSchema(null);
-      loadedDestinationPreviewKeyRef.current = "";
-      resetPreviewTableMutation();
+    if (
+      !isImportFlow ||
+      !open ||
+      saveMode !== "existing_table" ||
+      selectedTable ||
+      !activeProfile?.lastSelectedTable ||
+      isLoadingTables
+    ) {
       return;
     }
 
-    if (!activeConnection || !previewDestinationTable || !previewDestinationKey) {
-      setDestinationPreviewSchema(null);
-      loadedDestinationPreviewKeyRef.current = "";
+    const preferredTable = tables.find(
+      (table) => table.displayName === activeProfile.lastSelectedTable,
+    );
+
+    if (!preferredTable) {
       return;
     }
 
-    if (loadedDestinationPreviewKeyRef.current === previewDestinationKey) {
-      return;
-    }
-
-    let cancelled = false;
-    loadedDestinationPreviewKeyRef.current = previewDestinationKey;
-    setDestinationPreviewSchema(null);
-    resetPreviewTableMutation();
-
-    void runPreviewTableDescribe(previewDestinationTable)
-      .then((payload) => {
-        if (!cancelled) {
-          setDestinationPreviewSchema(payload.schema);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDestinationPreviewSchema(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    setSelectedTable(preferredTable.displayName);
+    void loadSchema(preferredTable);
   }, [
-    activeConnection,
-    previewDestinationKey,
-    previewDestinationTable,
-    resetPreviewTableMutation,
-    runPreviewTableDescribe,
-    shouldShowImportPreview,
+    activeProfile?.lastSelectedTable,
+    isImportFlow,
+    isLoadingTables,
+    loadSchema,
+    open,
+    saveMode,
+    selectedTable,
+    tables,
   ]);
+
+  const existingTablePreview = useMemo(() => {
+    if (!selectedSchema || !importPreview) {
+      return {
+        destinationPreviewColumns: [],
+        mappedSampleRows: [],
+      };
+    }
+
+    return buildExistingTablePreview(importPreview, selectedSchema, mappings);
+  }, [importPreview, mappings, selectedSchema]);
+
+  const destinationPreviewColumns = useMemo(() => {
+    if (saveMode === "existing_table") {
+      return existingTablePreview.destinationPreviewColumns;
+    }
+
+    if (saveMode === "new_table") {
+      return schemaDestinationColumns;
+    }
+
+    return [];
+  }, [existingTablePreview.destinationPreviewColumns, saveMode, schemaDestinationColumns]);
+
+  const mappedSampleRows =
+    saveMode === "existing_table"
+      ? existingTablePreview.mappedSampleRows
+      : eligibleRows.slice(0, 5).map((row) => ({
+          rowIndex: row.rowIndex,
+          values: destinationPreviewColumns.map((column) =>
+            String(row.raw[column.sourceHeader] ?? ""),
+          ),
+        }));
+
+  const canSaveToExternalTable =
+    Boolean(activeConnection) &&
+    eligibleRows.length > 0 &&
+    destinationPreviewColumns.length > 0 &&
+    (saveMode !== "existing_table" || Boolean(selectedTableRef));
+  const isSaving = saveImportMutation.isPending;
+  const error = useMemo(() => {
+    const activeError = saveImportMutation.error ?? describeTableMutation.error;
+
+    if (activeError instanceof Error) {
+      return activeError.message;
+    }
+
+    return connectionError;
+  }, [connectionError, describeTableMutation.error, saveImportMutation.error]);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -325,282 +384,568 @@ export function DatabaseSettingsDialog(props: {
       onOpenChange(isOpen);
     }}>
       {isImportFlow ? (
-        <DialogContent className="flex max-h-[92vh] w-[min(96vw,900px)] flex-col gap-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-6">
-            <DialogTitle className="text-2xl tracking-tight">Connect & Configure Import</DialogTitle>
-            <DialogDescription className="max-w-2xl">
-              Configure how your Excel data will be imported into the database. Choose a destination
-              table or create a new one, then connect to your database.
+        <DialogContent className="flex max-h-[92vh] w-[min(96vw,1180px)] flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="text-2xl tracking-tight">Connect & Save Import</DialogTitle>
+            <DialogDescription className="max-w-3xl">
+              Use the same database settings flow to test a connection, connect this browser
+              session, choose a destination, and save the current upload.
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 px-6">
-            <div className="space-y-6 pb-6">
-              {/* Section 1: Excel Preview */}
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Excel Upload Preview</h3>
-                  <div className="flex gap-2">
-                    <Badge variant="secondary">{importPreview?.validCount || 0} valid</Badge>
-                    <Badge variant={importPreview && importPreview.invalidCount > 0 ? "warning" : "outline"}>
-                      {importPreview?.invalidCount || 0} invalid
-                    </Badge>
-                    <Badge variant="outline">{importPreview?.rows.length || 0} rows</Badge>
+          <div className="grid min-h-0 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+            <div className="space-y-4">
+              <div className="rounded-2xl border bg-muted/35 p-4">
+                <p className="text-sm font-medium">Connection state</p>
+                {activeConnection ? (
+                  <div className="mt-3 space-y-2">
+                    <Badge variant="secondary">{activeConnection.provider}</Badge>
+                    <p className="text-sm">{activeConnection.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {activeProfile?.displayHost ?? "Session-only connection"}
+                    </p>
+                    {activeProfile?.lastSelectedTable ? (
+                      <p className="text-xs text-muted-foreground">
+                        Last destination: {activeProfile.lastSelectedTable}
+                      </p>
+                    ) : null}
                   </div>
-                </div>
-                {importPreview && (
-                  <div className="rounded-xl border bg-background p-2">
-                    <ImportPreviewTable preview={importPreview} maxRows={5} />
-                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    No active database session in this browser yet.
+                  </p>
                 )}
-              </section>
+              </div>
 
-              {/* Section 2: Table Destination */}
-              <section className="space-y-3">
-                <h3 className="font-medium">Table Destination</h3>
-                <RadioGroup
-                  value={importMode.type}
-                  onValueChange={(value) =>
-                    setImportMode({ type: value as typeof importMode.type, tableId: importMode.tableId })
-                  }
-                  className="space-y-2"
+              <div className="grid gap-2 rounded-2xl border bg-muted/35 p-4">
+                <Label htmlFor="save-import-name">Saved list name</Label>
+                <Input
+                  id="save-import-name"
+                  value={saveName}
+                  onChange={(event) => setSaveName(event.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-2 rounded-2xl border bg-muted/35 p-4">
+                <Label htmlFor="save-import-mode">Destination</Label>
+                <Select
+                  id="save-import-mode"
+                  value={saveMode}
+                  onChange={(event) => {
+                    setSaveMode(event.target.value as DatabaseSaveMode);
+                    setSaveResult(null);
+                  }}
                 >
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="existing" id="mode-existing" />
-                    <Label htmlFor="mode-existing" className="cursor-pointer">
-                      Choose existing table
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="new" id="mode-new" />
-                    <Label htmlFor="mode-new" className="cursor-pointer">
-                      Create new table
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="append" id="mode-append" />
-                    <Label htmlFor="mode-append" className="cursor-pointer">
-                      Append to existing table (check duplicates)
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="app_only" id="mode-app-only" />
-                    <Label htmlFor="mode-app-only" className="cursor-pointer">
-                      Save to EmailAI only
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </section>
+                  <option value="app_only">Save only to EmailAI</option>
+                  <option value="existing_table" disabled={!activeConnection}>
+                    Insert into existing table
+                  </option>
+                  <option value="new_table" disabled={!activeConnection}>
+                    Create and insert into new table
+                  </option>
+                </Select>
+              </div>
 
-              {/* Section 3: Dynamic Configuration */}
-              <section className="space-y-3">
-                {importMode.type === "existing" && (
-                  <div className="space-y-3">
-                    <Label htmlFor="existing-table">Select table</Label>
-                    <Select
-                      id="existing-table"
-                      value={importMode.tableId ?? ""}
-                      onChange={(e) => setImportMode({ ...importMode, tableId: e.target.value })}
-                    >
-                      <option value="">{isLoadingTables ? "Loading tables..." : "Select a table"}</option>
-                      {tables.map((table) => (
-                        <option key={table.name} value={table.name}>
-                          {table.displayName}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                )}
+              <div className="rounded-2xl border bg-muted/35 p-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">{importPreview!.rows.length} source rows</Badge>
+                  <Badge variant="secondary">{eligibleRows.length} valid rows</Badge>
+                  <Badge variant={invalidRowsCount > 0 ? "warning" : "outline"}>
+                    {invalidRowsCount} skipped invalid
+                  </Badge>
+                </div>
+                <p className="mt-3">
+                  External writes insert only rows EmailAI marked valid from the current upload.
+                </p>
+                {saveMode !== "app_only" ? (
+                  <>
+                    <p className="mt-2">{eligibleRows.length} row(s) will be inserted.</p>
+                    <p className="mt-1">
+                      {destinationPreviewColumns.length} destination column(s) currently mapped.
+                    </p>
+                  </>
+                ) : null}
+              </div>
 
-                {importMode.type === "new" && (
-                  <div className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="grid gap-2">
-                        <Label htmlFor="new-table-schema">Schema</Label>
-                        <Input
-                          id="new-table-schema"
-                          value={newTableSchemaName}
-                          onChange={(e) => setNewTableSchemaName(e.target.value)}
-                          placeholder="public"
-                        />
+              {saveResult ? (
+                <Alert>
+                  <AlertTitle>Import saved</AlertTitle>
+                  <AlertDescription className="space-y-1">
+                    <p>
+                      {saveResult.destinationTableName
+                        ? `Inserted ${saveResult.insertedCount} row(s) into ${saveResult.destinationTableName}.`
+                        : "Saved list into EmailAI."}
+                    </p>
+                    <p>
+                      {saveResult.eligibleRowCount} eligible from {saveResult.sourceRowCount} source
+                      row(s), {saveResult.skippedRowCount} skipped.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              <div className="rounded-2xl border bg-muted/35 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium">Saved connection profiles</p>
+                  <Badge variant="outline">{profiles.length}</Badge>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {profiles.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No saved profile metadata yet. Paste a DSN to reconnect.
+                    </p>
+                  ) : (
+                    profiles.map((profile) => (
+                      <div key={profile.id} className="rounded-xl border bg-background p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium">{profile.label}</p>
+                          <Badge variant="outline">{profile.provider}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {profile.displayHost} · {profile.displayDatabaseName}
+                        </p>
+                        {profile.lastSelectedTable ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Last table: {profile.lastSelectedTable}
+                          </p>
+                        ) : null}
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="new-table-name">Table name</Label>
-                        <Input
-                          id="new-table-name"
-                          value={newTableName}
-                          onChange={(e) => setNewTableName(e.target.value)}
-                          placeholder="my_table"
-                        />
-                      </div>
+                    ))
+                  )}
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Credentials stay in session storage only. Saved profiles help identify the target
+                  database, but they do not restore the raw connection string.
+                </p>
+              </div>
+            </div>
+
+            <ScrollArea className="h-[70vh] rounded-2xl border bg-background p-4">
+              <div className="space-y-5">
+                <section className="space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Uploaded spreadsheet preview</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Review the current upload while you connect a destination database.
+                      </p>
                     </div>
-
-                    <EditableSchemaEditor
-                      columns={editedSchemaColumns}
-                      onChange={setEditedSchemaColumns}
-                      previewRows={samplePreviewRows}
-                      destinationColumns={schemaDestinationColumns}
-                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">{importPreview!.validCount} valid</Badge>
+                      <Badge variant={importPreview!.invalidCount > 0 ? "warning" : "outline"}>
+                        {importPreview!.invalidCount} invalid
+                      </Badge>
+                      <Badge variant="outline">
+                        {importPreview!.sourceFiles.length} file
+                        {importPreview!.sourceFiles.length === 1 ? "" : "s"}
+                      </Badge>
+                    </div>
                   </div>
-                )}
+                  <div className="rounded-xl border bg-background">
+                    <ImportPreviewTable preview={importPreview!} maxRows={8} />
+                  </div>
+                </section>
 
-                {importMode.type === "append" && (
-                  <div className="space-y-3">
-                    <Label htmlFor="append-table">Select table to append</Label>
-                    <Select
-                      id="append-table"
-                      value={importMode.tableId ?? ""}
-                      onChange={(e) => setImportMode({ ...importMode, tableId: e.target.value })}
-                    >
-                      <option value="">{isLoadingTables ? "Loading tables..." : "Select a table"}</option>
-                      {tables.map((table) => (
-                        <option key={table.name} value={table.name}>
-                          {table.displayName}
-                        </option>
-                      ))}
-                    </Select>
+                <section className="space-y-4 rounded-2xl border bg-muted/25 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Database connection</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Test first, then connect this browser session before saving externally.
+                      </p>
+                    </div>
+                    {activeConnection ? (
+                      <Badge variant="secondary">{activeConnection.provider}</Badge>
+                    ) : null}
+                  </div>
 
-                    <div className="flex items-center gap-2 rounded-xl border bg-muted/35 p-3">
-                      <Checkbox
-                        id="check-duplicates"
-                        checked={checkDuplicates}
-                        onCheckedChange={(checked) => setCheckDuplicates(checked === "indeterminate" ? false : checked)}
+                  <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-end">
+                    <div className="grid gap-2">
+                      <Label htmlFor="db-provider-import">Provider</Label>
+                      <Select
+                        id="db-provider-import"
+                        value={provider}
+                        onChange={(event) => {
+                          invalidateConnectionTest();
+                          setProvider(event.target.value as ExternalDatabaseProvider);
+                        }}
+                      >
+                        <option value="supabase">Supabase</option>
+                        <option value="postgres">Postgres</option>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="db-label-import">Connection label</Label>
+                      <Input
+                        id="db-label-import"
+                        value={label}
+                        onChange={(event) => {
+                          invalidateConnectionTest();
+                          setLabel(event.target.value);
+                        }}
+                        placeholder="Production database"
                       />
-                      <Label htmlFor="check-duplicates" className="cursor-pointer">
-                        Check for duplicates (ignore existing rows)
-                      </Label>
                     </div>
                   </div>
-                )}
 
-                {importMode.type === "app_only" && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="db-connection-string-import">Connection string</Label>
+                    <Input
+                      id="db-connection-string-import"
+                      value={connectionString}
+                      onChange={(event) => {
+                        invalidateConnectionTest();
+                        setConnectionString(event.target.value);
+                      }}
+                      placeholder="postgresql://user:password@host:5432/database"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Supabase pooler URLs are supported. Paste the Session pooler DSN exactly as
+                      shown in Supabase Connect.
+                    </p>
+                  </div>
+
+                  {error ? (
+                    <Alert className="border-destructive/40 bg-destructive/5 text-destructive">
+                      <AlertTitle>Connection failed</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  {successMessage ? (
+                    <Alert>
+                      <AlertTitle>
+                        {successKind === "test" ? "Connection test passed" : "Connection ready"}
+                      </AlertTitle>
+                      <AlertDescription>{successMessage}</AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={async () => {
+                        await testConnection(draftConnection);
+                      }}
+                      disabled={
+                        isTestingConnection ||
+                        isConnectingConnection ||
+                        !connectionString.trim() ||
+                        !label.trim()
+                      }
+                    >
+                      <PlugZap className="h-4 w-4" />
+                      {isTestingConnection ? "Testing..." : "Test connection"}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={async () => {
+                        await connectConnection(draftConnection);
+                        setSaveMode((current) => (current === "app_only" ? "existing_table" : current));
+                        await onProfilesUpdated?.();
+                      }}
+                      disabled={
+                        isTestingConnection ||
+                        isConnectingConnection ||
+                        !connectionString.trim() ||
+                        !label.trim() ||
+                        !isDraftConnectionReady ||
+                        isCurrentDraftConnected
+                      }
+                    >
+                      <PlugZap className="h-4 w-4" />
+                      {isCurrentDraftConnected
+                        ? "Connected"
+                        : isConnectingConnection
+                          ? "Connecting..."
+                          : "Connect"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => clearActiveConnection()}
+                      disabled={!activeConnection}
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                </section>
+
+                {saveMode === "existing_table" ? (
+                  <>
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Database className="h-4 w-4" />
+                        <p className="font-medium">Destination table</p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="existing-table">Choose table</Label>
+                        <Select
+                          id="existing-table"
+                          value={selectedTable}
+                          onChange={(event) => {
+                            setSelectedTable(event.target.value);
+                            setSaveResult(null);
+                            const nextTable = tables.find(
+                              (table) => table.displayName === event.target.value,
+                            );
+
+                            if (nextTable) {
+                              void loadSchema(nextTable);
+                            }
+                          }}
+                        >
+                          <option value="">
+                            {isLoadingTables ? "Loading tables..." : "Select a table"}
+                          </option>
+                          {tables.map((table) => (
+                            <option key={table.displayName} value={table.displayName}>
+                              {table.displayName}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                      {selectedTableRef ? (
+                        <div className="rounded-xl border bg-muted/25 p-3 text-sm text-muted-foreground">
+                          Writing valid uploaded rows into{" "}
+                          <span className="font-medium text-foreground">
+                            {selectedTableRef.displayName}
+                          </span>
+                          .
+                        </div>
+                      ) : null}
+                    </section>
+
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Table2 className="h-4 w-4" />
+                        <p className="font-medium">Table schema</p>
+                      </div>
+                      {selectedSchema ? (
+                        <div className="overflow-hidden rounded-xl border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Column</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Constraint</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {selectedSchema.columns.map((column) => (
+                                <TableRow key={column.name}>
+                                  <TableCell className="font-medium">{column.name}</TableCell>
+                                  <TableCell>{column.type}</TableCell>
+                                  <TableCell>{column.nullable ? "Nullable" : "Required"}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                          Select a table to inspect its columns before mapping.
+                        </div>
+                      )}
+                    </section>
+
+                    {selectedSchema ? (
+                      <section className="space-y-3">
+                        <p className="font-medium">Column mapping</p>
+                        {importPreview!.headers.map((header) => (
+                          <div
+                            key={header}
+                            className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_1fr]"
+                          >
+                            <div>
+                              <p className="text-sm font-medium">{header}</p>
+                              <p className="text-xs text-muted-foreground">Uploaded column</p>
+                            </div>
+                            <Select
+                              value={mappings[header] ?? ""}
+                              onChange={(event) =>
+                                setMappings((current) => ({
+                                  ...current,
+                                  [header]: event.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">Skip this column</option>
+                              {selectedSchema.columns.map((column) => (
+                                <option key={column.name} value={column.name}>
+                                  {column.name} ({column.type})
+                                </option>
+                              ))}
+                            </Select>
+                          </div>
+                        ))}
+                      </section>
+                    ) : null}
+                  </>
+                ) : null}
+
+                {saveMode === "new_table" ? (
+                  <>
+                    <section className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Database className="h-4 w-4" />
+                        <p className="font-medium">New table destination</p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-2">
+                          <Label htmlFor="new-table-schema">Schema</Label>
+                          <Input
+                            id="new-table-schema"
+                            value={newTableSchemaName}
+                            onChange={(event) => setNewTableSchemaName(event.target.value)}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="new-table-name">Table name</Label>
+                          <Input
+                            id="new-table-name"
+                            value={newTableName}
+                            onChange={(event) => setNewTableName(event.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="rounded-xl border bg-muted/25 p-3 text-sm text-muted-foreground">
+                        New table target:{" "}
+                        <span className="font-medium text-foreground">
+                          {newTableSchemaName}.{newTableName || "untitled_table"}
+                        </span>
+                      </div>
+                    </section>
+
+                    <section className="space-y-3">
+                      <p className="font-medium">Editable schema</p>
+                      <EditableSchemaEditor
+                        columns={editedSchemaColumns}
+                        onChange={setEditedSchemaColumns}
+                        previewRows={samplePreviewRows}
+                        destinationColumns={schemaDestinationColumns}
+                      />
+                    </section>
+                  </>
+                ) : null}
+
+                {saveMode !== "app_only" ? (
+                  <section className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      <p className="font-medium">Mapped sample preview</p>
+                    </div>
+                    {destinationPreviewColumns.length > 0 ? (
+                      <div className="overflow-hidden rounded-xl border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Row</TableHead>
+                              {destinationPreviewColumns.map((column) => (
+                                <TableHead key={`${column.destinationColumn}-${column.sourceHeader}`}>
+                                  <div className="space-y-1">
+                                    <p>{column.destinationColumn}</p>
+                                    <p className="text-[11px] font-normal text-muted-foreground">
+                                      {column.sourceHeader}
+                                    </p>
+                                  </div>
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {mappedSampleRows.map((row) => (
+                              <TableRow key={row.rowIndex}>
+                                <TableCell className="font-medium">{row.rowIndex}</TableCell>
+                                {row.values.map((value, index) => (
+                                  <TableCell key={`${row.rowIndex}-${index}`}>{value}</TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                        Map at least one destination column to preview what will be inserted.
+                      </div>
+                    )}
+                  </section>
+                ) : (
                   <Alert>
-                    <AlertTitle>Save to EmailAI database</AlertTitle>
+                    <AlertTitle>Save without external table</AlertTitle>
                     <AlertDescription>
-                      Your Excel data will be saved to EmailAI&apos;s internal database. You can access it
-                      later from the dashboard.
+                      This stores the uploaded rows in EmailAI so you can reopen the list later,
+                      even without writing to Postgres yet.
                     </AlertDescription>
                   </Alert>
                 )}
-              </section>
+              </div>
+            </ScrollArea>
+          </div>
 
-              {/* Section 4: Connection Form */}
-              <section className="space-y-4 rounded-xl border bg-muted/25 p-4">
-                <h3 className="font-medium">Database Connection</h3>
-
-                <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-end">
-                  <div className="grid gap-2">
-                    <Label htmlFor="db-provider-import">Provider</Label>
-                    <Select
-                      id="db-provider-import"
-                      value={provider}
-                      onChange={(e) => {
-                        invalidateConnectionTest();
-                        setProvider(e.target.value as ExternalDatabaseProvider);
-                      }}
-                    >
-                      <option value="supabase">Supabase</option>
-                      <option value="postgres">Postgres</option>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="db-label-import">Connection label</Label>
-                    <Input
-                      id="db-label-import"
-                      value={label}
-                      onChange={(e) => {
-                        invalidateConnectionTest();
-                        setLabel(e.target.value);
-                      }}
-                      placeholder="Production database"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="db-connection-string-import">Connection string</Label>
-                  <Input
-                    id="db-connection-string-import"
-                    value={connectionString}
-                    onChange={(e) => {
-                      invalidateConnectionTest();
-                      setConnectionString(e.target.value);
-                    }}
-                    placeholder="postgresql://user:password@host:5432/database"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Supabase pooler URLs are supported. Paste the Session pooler DSN exactly as shown
-                    in Supabase Connect.
-                  </p>
-                </div>
-
-                {error ? (
-                  <Alert className="border-destructive/40 bg-destructive/5 text-destructive">
-                    <AlertTitle>Connection failed</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                ) : null}
-
-                {successMessage ? (
-                  <Alert>
-                    <AlertTitle>
-                      {successKind === "test" ? "Connection test passed" : "Connection ready"}
-                    </AlertTitle>
-                    <AlertDescription>{successMessage}</AlertDescription>
-                  </Alert>
-                ) : null}
-
-                {activeConnection && (
-                  <div className="rounded-lg border bg-background p-3">
-                    <p className="text-sm font-medium">Connected</p>
-                    <p className="mt-1 text-sm">{activeConnection.label}</p>
-                    <Badge variant="secondary" className="mt-1">{activeConnection.provider}</Badge>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={async () => {
-                      await testConnection(draftConnection);
-                    }}
-                    disabled={isTestingConnection || isConnectingConnection || !connectionString.trim() || !label.trim()}
-                  >
-                    <PlugZap className="h-4 w-4" />
-                    {isTestingConnection ? "Testing..." : "Test connection"}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={async () => {
-                      await connectConnection(draftConnection);
-                      await onProfilesUpdated?.();
-                    }}
-                    disabled={
-                      isTestingConnection ||
-                      isConnectingConnection ||
-                      !connectionString.trim() ||
-                      !label.trim() ||
-                      !isDraftConnectionReady ||
-                      isCurrentDraftConnected
-                    }
-                  >
-                    <PlugZap className="h-4 w-4" />
-                    {isCurrentDraftConnected ? "Connected" : isConnectingConnection ? "Connecting..." : "Connect"}
-                  </Button>
-                  {activeConnection && (
-                    <Button type="button" variant="outline" onClick={() => clearActiveConnection()}>
-                      Disconnect
-                    </Button>
-                  )}
-                </div>
-              </section>
-            </div>
-          </ScrollArea>
-
-          <DialogFooter className="border-t bg-background px-6 py-4">
+          <DialogFooter className="flex-wrap gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
+              {saveResult ? "Done" : "Cancel"}
+            </Button>
+            <Button
+              onClick={async () => {
+                setSaveResult(null);
+
+                try {
+                  saveImportMutation.reset();
+                  const payload: DatabaseSaveImportPayload = {
+                    connection: activeConnection ?? undefined,
+                    saveName,
+                    preview: importPreview!,
+                    mode: saveMode,
+                    existingTable: selectedTableRef ?? undefined,
+                    mappings:
+                      saveMode === "existing_table"
+                        ? importPreview!.headers.map((header) => ({
+                            sourceColumn: header,
+                            destinationColumn: mappings[header] || undefined,
+                          }))
+                        : importPreview!.headers.map((header, index) => ({
+                            sourceColumn: header,
+                            destinationColumn:
+                              saveMode === "new_table"
+                                ? editedSchemaColumns[index]?.suggestedName.trim() || undefined
+                                : undefined,
+                          })),
+                    newTable:
+                      saveMode === "new_table"
+                        ? {
+                            schemaName: newTableSchemaName,
+                            tableName: newTableName,
+                            columns: editedSchemaColumns,
+                          }
+                        : undefined,
+                  };
+                  const response = await saveImportMutation.mutateAsync(payload);
+
+                  useDatabaseSessionStore.getState().setEditedImportSchema(editedSchemaColumns);
+                  setSaveResult(response);
+                  onImportSaved?.(response);
+                  await onProfilesUpdated?.();
+                } catch {
+                  return;
+                }
+              }}
+              disabled={
+                isSaving ||
+                Boolean(saveResult) ||
+                !saveName.trim() ||
+                (saveMode === "existing_table" && !canSaveToExternalTable) ||
+                (saveMode === "new_table" &&
+                  (!activeConnection ||
+                    !newTableName.trim() ||
+                    editedSchemaColumns.length === 0 ||
+                    !canSaveToExternalTable))
+              }
+            >
+              {saveResult ? "Saved" : isSaving ? "Saving..." : "Save import"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -614,8 +959,8 @@ export function DatabaseSettingsDialog(props: {
                   </Badge>
                   <DialogTitle className="text-2xl tracking-tight">Database connection</DialogTitle>
                   <DialogDescription className="max-w-sm text-[15px] leading-7 text-white/78">
-                    Connect Supabase or any Postgres-compatible database, inspect tables, and
-                    save imported Excel rows for reuse later.
+                    Test a Supabase or Postgres connection, connect it to this browser session,
+                    and disconnect it when you are done.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -659,393 +1004,148 @@ export function DatabaseSettingsDialog(props: {
                       postgresql://postgres.&lt;project-ref&gt;:&lt;password&gt;@aws-0-&lt;region&gt;.pooler.supabase.com:5432/postgres
                     </p>
                   </div>
-
-                  <div className="rounded-2xl border border-white/12 bg-white/8 p-4 text-sm text-white/74">
-                    <p className="font-medium text-white">Campaign sync</p>
-                    <p className="mt-2">
-                      {lastSyncedAt
-                        ? `Last synced at ${new Date(lastSyncedAt).toLocaleString()}`
-                        : "No campaign sync has completed for the active connection yet."}
-                    </p>
-                    <p className="mt-2">
-                      {needsSync
-                        ? "The current campaign has unsynced changes."
-                        : "No pending campaign sync in this browser right now."}
-                    </p>
-                  </div>
                 </div>
           </div>
 
           <div className="flex min-h-0 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-y-auto p-6">
               <div className="grid gap-4">
-                {isImportFlow && (
+                <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-end">
+                  <div className="grid gap-2">
+                    <Label htmlFor="db-provider">Provider</Label>
+                    <Select
+                      id="db-provider"
+                      value={provider}
+                      onChange={(event) => {
+                        invalidateConnectionTest();
+                        setProvider(event.target.value as ExternalDatabaseProvider);
+                      }}
+                    >
+                      <option value="supabase">Supabase</option>
+                      <option value="postgres">Postgres</option>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="db-connection-string">Connection string</Label>
+                    <Input
+                      id="db-connection-string"
+                      value={connectionString}
+                      onChange={(event) => {
+                        invalidateConnectionTest();
+                        setConnectionString(event.target.value);
+                      }}
+                      placeholder="postgresql://user:password@host:5432/database"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Supabase pooler URLs are supported. Paste the Session pooler DSN exactly as shown
+                  in Supabase Connect.
+                </p>
+
+                {error ? (
+                  <Alert className="border-destructive/40 bg-destructive/5 text-destructive">
+                    <AlertTitle>Connection failed</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {successMessage ? (
+                  <Alert>
+                    <AlertTitle>
+                      {successKind === "test" ? "Connection test passed" : "Connection ready"}
+                    </AlertTitle>
+                    <AlertDescription>{successMessage}</AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {activeConnection ? (
+                  <div className="rounded-2xl border bg-muted/35 p-4">
+                    <p className="font-medium">Connected in this browser session</p>
+                    <p className="mt-2 text-sm">{activeConnection.label}</p>
+                    <Badge variant="secondary" className="mt-2">
+                      {activeConnection.provider}
+                    </Badge>
+                  </div>
+                ) : null}
+
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-between"
-                    onClick={() => setShowConnectionForm((current) => !current)}
+                    onClick={async () => {
+                      await testConnection(draftConnection);
+                    }}
+                    disabled={
+                      isTestingConnection || isConnectingConnection || !connectionString.trim()
+                    }
                   >
-                    <span>Connection settings</span>
-                    {showConnectionForm ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
+                    <PlugZap className="h-4 w-4" />
+                    {isTestingConnection ? "Testing connection..." : "Test connection"}
                   </Button>
-                )}
-
-                {(showConnectionForm || !isImportFlow) && (
-                  <>
-                    <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-end">
-                      <div className="grid gap-2">
-                        <Label htmlFor="db-provider">Provider</Label>
-                        <Select
-                          id="db-provider"
-                          value={provider}
-                          onChange={(event) => {
-                            invalidateConnectionTest();
-                            setProvider(event.target.value as ExternalDatabaseProvider);
-                          }}
-                        >
-                          <option value="supabase">Supabase</option>
-                          <option value="postgres">Postgres</option>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="db-label">Connection label</Label>
-                        <Input
-                          id="db-label"
-                          value={label}
-                          onChange={(event) => {
-                            invalidateConnectionTest();
-                            setLabel(event.target.value);
-                          }}
-                          placeholder="Production leads database"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="db-connection-string">Connection string</Label>
-                      <Input
-                        id="db-connection-string"
-                        value={connectionString}
-                        onChange={(event) => {
-                          invalidateConnectionTest();
-                          setConnectionString(event.target.value);
-                        }}
-                        placeholder="postgresql://user:password@host:5432/database"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Supabase pooler URLs are supported. Paste the Session pooler DSN exactly
-                        as shown in Supabase Connect.
-                      </p>
-                    </div>
-
-                    {error ? (
-                      <Alert className="border-destructive/40 bg-destructive/5 text-destructive">
-                        <AlertTitle>Connection failed</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    ) : null}
-
-                    {successMessage ? (
-                      <Alert>
-                        <AlertTitle>
-                          {successKind === "test" ? "Connection test passed" : "Connection ready"}
-                        </AlertTitle>
-                        <AlertDescription>{successMessage}</AlertDescription>
-                      </Alert>
-                    ) : null}
-
-                    {syncError ? (
-                      <Alert className="border-destructive/40 bg-destructive/5 text-destructive">
-                        <AlertTitle>Sync failed</AlertTitle>
-                        <AlertDescription>{syncError}</AlertDescription>
-                      </Alert>
-                    ) : null}
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={async () => {
-                          await testConnection(draftConnection);
-                        }}
-                        disabled={
-                          isTestingConnection ||
-                          isConnectingConnection ||
-                          !connectionString.trim() ||
-                          !label.trim()
-                        }
-                      >
-                        <PlugZap className="h-4 w-4" />
-                        {isTestingConnection ? "Testing connection..." : "Test connection"}
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={async () => {
-                          await connectConnection(draftConnection);
-                          await onProfilesUpdated?.();
-                        }}
-                        disabled={
-                          isTestingConnection ||
-                          isConnectingConnection ||
-                          !connectionString.trim() ||
-                          !label.trim() ||
-                          !isDraftConnectionReady ||
-                          isCurrentDraftConnected
-                        }
-                      >
-                        <PlugZap className="h-4 w-4" />
-                        {isCurrentDraftConnected
-                          ? "Connected"
-                          : isConnectingConnection
-                            ? "Connecting..."
-                            : "Connect"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => clearActiveConnection()}
-                        disabled={!activeConnection}
-                      >
-                        Disconnect browser session
-                      </Button>
-                    </div>
-
-                    <div className="grid gap-3 rounded-2xl border bg-muted/35 p-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-end">
-                      <div className="grid gap-2">
-                        <Label htmlFor="db-sync-mode">Send history sync</Label>
-                        <Select
-                          id="db-sync-mode"
-                          value={activeConnection?.syncMode ?? "auto"}
-                          disabled={!activeConnection}
-                          onChange={async (event) => {
-                            if (!activeConnection) {
-                              return;
-                            }
-
-                            await updateSyncMode(
-                              activeConnection.profileId ?? "",
-                              event.target.value as "auto" | "manual",
-                            );
-                            await onProfilesUpdated?.();
-                          }}
-                        >
-                          <option value="auto">Auto sync after send</option>
-                          <option value="manual">Manual sync only</option>
-                        </Select>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!canSyncCurrentCampaign || isSyncing}
-                        onClick={() => void syncCurrentCampaign()}
-                      >
-                        <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-                        {isSyncing ? "Syncing..." : "Sync now"}
-                      </Button>
-                    </div>
-                  </>
-                )}
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      await connectConnection(draftConnection);
+                      await onProfilesUpdated?.();
+                    }}
+                    disabled={
+                      isTestingConnection ||
+                      isConnectingConnection ||
+                      !connectionString.trim() ||
+                      !isDraftConnectionReady ||
+                      isCurrentDraftConnected
+                    }
+                  >
+                    <PlugZap className="h-4 w-4" />
+                    {isCurrentDraftConnected
+                      ? "Connected"
+                      : isConnectingConnection
+                        ? "Connecting..."
+                        : "Connect"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => clearActiveConnection()}
+                    disabled={!activeConnection}
+                  >
+                    Disconnect browser session
+                  </Button>
+                </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
-                  {shouldShowImportPreview && importPreview ? (
-                    <>
-                      <div className="rounded-2xl border bg-muted/35 p-4 lg:col-span-2">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium">Uploaded spreadsheet preview</p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              Read-only view of the current upload while you connect a destination
-                              database.
+                  <div className="rounded-2xl border bg-muted/35 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">Saved connection profiles</p>
+                      <Badge variant="outline">{profiles.length}</Badge>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {profiles.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No connection profiles saved for this account yet.
+                        </p>
+                      ) : (
+                        profiles.map((profile) => (
+                          <div key={profile.id} className="rounded-xl border bg-background p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium">{profile.label}</p>
+                              <Badge variant="outline">{profile.provider}</Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {profile.displayHost} · {profile.displayDatabaseName}
                             </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="secondary">{importPreview.validCount} valid</Badge>
-                            <Badge
-                              variant={importPreview.invalidCount > 0 ? "warning" : "outline"}
-                            >
-                              {importPreview.invalidCount} invalid
-                            </Badge>
-                            <Badge variant="outline">
-                              {importPreview.sourceFiles.length} file
-                              {importPreview.sourceFiles.length === 1 ? "" : "s"}
-                            </Badge>
-                          </div>
-                        </div>
-                        <ScrollArea className="mt-4 h-[260px] rounded-xl border bg-background">
-                          <ImportPreviewTable preview={importPreview} maxRows={8} />
-                        </ScrollArea>
-                      </div>
-
-                      <div className="rounded-2xl border bg-muted/35 p-4 lg:col-span-2">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium">Destination preview</p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              Preview how valid uploaded rows could map into a destination table.
-                              Final destination selection still happens in the save dialog.
-                            </p>
-                          </div>
-                          {previewDestinationTable ? (
-                            <Badge variant="outline">{previewDestinationTable.displayName}</Badge>
-                          ) : null}
-                        </div>
-
-                        {!activeConnection ? (
-                          <div className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                            Connect a database to preview how valid uploaded rows could map into a
-                            destination table.
-                          </div>
-                        ) : isLoadingTables ? (
-                          <div className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                            Loading destination preview...
-                          </div>
-                        ) : tables.length === 0 ? (
-                          <div className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                            No tables were found for this connection.
-                          </div>
-                        ) : describePreviewTableMutation.error instanceof Error ? (
-                          <Alert className="mt-4 border-destructive/40 bg-destructive/5 text-destructive">
-                            <AlertTitle>Destination preview unavailable</AlertTitle>
-                            <AlertDescription>
-                              {describePreviewTableMutation.error.message}
-                            </AlertDescription>
-                          </Alert>
-                        ) : destinationPreviewSchema && destinationPreview ? (
-                          <div className="mt-4 space-y-4">
-                            {isFallbackPreviewTable ? (
-                              <p className="text-xs text-muted-foreground">
-                                Previewing the first available table because no previous import
-                                destination is saved for this connection yet.
+                            {profile.lastSelectedTable ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Last table: {profile.lastSelectedTable}
                               </p>
                             ) : null}
-
-                            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                              <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <Database className="h-4 w-4" />
-                                  <p className="font-medium">Table schema</p>
-                                </div>
-                                <div className="overflow-hidden rounded-xl border bg-background">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Column</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Constraint</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {destinationPreviewSchema.columns.map((column) => (
-                                        <TableRow key={column.name}>
-                                          <TableCell className="font-medium">{column.name}</TableCell>
-                                          <TableCell>{column.type}</TableCell>
-                                          <TableCell>
-                                            {column.nullable ? "Nullable" : "Required"}
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-
-                              <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <Database className="h-4 w-4" />
-                                  <p className="font-medium">Mapped sample rows</p>
-                                </div>
-                                {destinationPreview.destinationPreviewColumns.length > 0 ? (
-                                  <div className="overflow-hidden rounded-xl border bg-background">
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          <TableHead>CSV row</TableHead>
-                                          {destinationPreview.destinationPreviewColumns.map((column) => (
-                                            <TableHead
-                                              key={`${column.destinationColumn}-${column.sourceHeader}`}
-                                            >
-                                              <div className="space-y-1">
-                                                <p>{column.destinationColumn}</p>
-                                                <p className="text-[11px] font-normal text-muted-foreground">
-                                                  {column.sourceHeader}
-                                                </p>
-                                              </div>
-                                            </TableHead>
-                                          ))}
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {destinationPreview.mappedSampleRows.map((row) => (
-                                          <TableRow key={row.rowIndex}>
-                                            <TableCell className="font-medium">
-                                              {row.rowIndex}
-                                            </TableCell>
-                                            {row.values.map((value, index) => (
-                                              <TableCell key={`${row.rowIndex}-${index}`}>
-                                                {value}
-                                              </TableCell>
-                                            ))}
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  </div>
-                                ) : (
-                                  <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                                    The previewed destination table has no automatic header matches
-                                    with the uploaded spreadsheet.
-                                  </div>
-                                )}
-                              </div>
-                            </div>
                           </div>
-                        ) : (
-                          <div className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                            Loading destination preview...
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  ) : null}
-
-                  {!isImportFlow && (
-                    <div className="rounded-2xl border bg-muted/35 p-4">
-                      <div className="flex items-center gap-2">
-                        <Database className="h-4 w-4" />
-                        <p className="font-medium">Saved connection profiles</p>
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {profiles.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">
-                            No connection profiles saved for this account yet.
-                          </p>
-                        ) : (
-                          profiles.map((profile) => (
-                            <div key={profile.id} className="rounded-xl border bg-background p-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="font-medium">{profile.label}</p>
-                                <Badge variant="outline">{profile.provider}</Badge>
-                              </div>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {profile.displayHost} · {profile.displayDatabaseName}
-                              </p>
-                              {profile.lastSelectedTable ? (
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  Last table: {profile.lastSelectedTable}
-                                </p>
-                              ) : null}
-                            </div>
-                          ))
-                        )}
-                      </div>
+                        ))
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   <div className="rounded-2xl border bg-muted/35 p-4">
                     <div className="flex items-center justify-between gap-2">
