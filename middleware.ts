@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
 
     // Apply rate limiting (uses user ID if authenticated, IP otherwise)
     const userId = token?.email || token?.googleEmail || undefined;
-    const rateLimitResponse = rateLimitMiddleware(
+    const rateLimitResponse = await rateLimitMiddleware(
       request,
       category,
       userId

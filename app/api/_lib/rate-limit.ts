@@ -1,39 +1,53 @@
 /**
- * Rate limiting utility for API endpoints.
+ * Rate limiting utility for API endpoints using rate-limiter-flexible.
  *
- * Uses token bucket algorithm with in-memory Map-based storage.
+ * Uses token bucket algorithm with in-memory storage.
  * Provides different rate limits for different endpoint categories.
  */
 
-import { rateLimitStore } from "./rate-limit-store";
+import { RateLimiterMemory } from "rate-limiter-flexible";
+import type { NextRequest } from "next/server";
 
 /**
  * Rate limit configuration for different endpoint categories.
  */
 export interface RateLimitConfig {
-  requests: number;
-  window: number; // milliseconds
+  points: number; // Number of requests allowed
+  duration: number; // Time window in seconds
 }
 
 /**
  * Rate limit categories with their configurations.
+ * Maps to the same limits as the previous implementation.
  */
 export const RATE_LIMITS: Record<string, RateLimitConfig> = {
   // Default: 100 requests per minute
-  default: { requests: 100, window: 60 * 1000 },
+  default: { points: 100, duration: 60 },
 
   // AI endpoints: 20 requests per minute (expensive operations)
-  ai: { requests: 20, window: 60 * 1000 },
+  ai: { points: 20, duration: 60 },
 
   // Bulk operations: 10 requests per minute (resource-intensive)
-  bulk: { requests: 10, window: 60 * 1000 },
+  bulk: { points: 10, duration: 60 },
 
   // Authentication: 5 requests per 5 minutes (prevent brute force)
-  auth: { requests: 5, window: 5 * 60 * 1000 },
+  auth: { points: 5, duration: 300 },
+};
+
+/**
+ * Rate limiter instances for each category.
+ * Each category has its own limiter with specific limits.
+ */
+const limiters = {
+  default: new RateLimiterMemory(RATE_LIMITS.default),
+  ai: new RateLimiterMemory(RATE_LIMITS.ai),
+  bulk: new RateLimiterMemory(RATE_LIMITS.bulk),
+  auth: new RateLimiterMemory(RATE_LIMITS.auth),
 };
 
 /**
  * Rate limit check result.
+ * Maintains compatibility with the previous implementation.
  */
 export interface RateLimitResult {
   allowed: boolean;
@@ -69,27 +83,34 @@ export interface RateLimitResult {
  * }
  * ```
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   identifier: string,
-  category: keyof typeof RATE_LIMITS = "default"
-): RateLimitResult {
+  category: keyof typeof limiters = "default"
+): Promise<RateLimitResult> {
+  const limiter = limiters[category] || limiters.default;
   const config = RATE_LIMITS[category] || RATE_LIMITS.default;
-  const entry = rateLimitStore.increment(identifier, config.window);
 
-  const allowed = entry.count <= config.requests;
-  const remaining = Math.max(0, config.requests - entry.count);
-  const resetAt = new Date(entry.resetAt);
-  const retryAfter = allowed
-    ? undefined
-    : Math.ceil((entry.resetAt - Date.now()) / 1000);
+  try {
+    // Try to consume 1 point
+    const result = await limiter.consume(identifier, 1);
 
-  return {
-    allowed,
-    limit: config.requests,
-    remaining,
-    resetAt,
-    retryAfter,
-  };
+    // Request allowed
+    return {
+      allowed: true,
+      limit: config.points,
+      remaining: result.remainingPoints,
+      resetAt: new Date(Date.now() + result.msBeforeNext),
+    };
+  } catch (rejRes: any) {
+    // Rate limit exceeded
+    return {
+      allowed: false,
+      limit: config.points,
+      remaining: 0,
+      resetAt: new Date(Date.now() + rejRes.msBeforeNext),
+      retryAfter: Math.ceil(rejRes.msBeforeNext / 1000),
+    };
+  }
 }
 
 /**
@@ -101,7 +122,7 @@ export function checkRateLimit(
  * @returns Identifier string for rate limiting
  */
 export function getRateLimitIdentifier(
-  request: Request,
+  request: NextRequest,
   userId?: string
 ): string {
   if (userId) {
@@ -125,13 +146,13 @@ export function getRateLimitIdentifier(
  * @param userId - Optional authenticated user ID
  * @returns NextResponse if rate limited, null if allowed
  */
-export function rateLimitMiddleware(
-  request: Request,
-  category: keyof typeof RATE_LIMITS = "default",
+export async function rateLimitMiddleware(
+  request: NextRequest,
+  category: keyof typeof limiters = "default",
   userId?: string
-): Response | null {
+): Promise<Response | null> {
   const identifier = getRateLimitIdentifier(request, userId);
-  const result = checkRateLimit(identifier, category);
+  const result = await checkRateLimit(identifier, category);
 
   if (!result.allowed) {
     return new Response(
