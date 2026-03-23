@@ -51,15 +51,15 @@ export async function mockAuthenticatedUser(user: MockAuthUser): Promise<Session
 
   const authSubject = user.authSubject || user.id || user.email;
 
-  if ("mockResolvedValueOnce" in requireAppUser && typeof requireAppUser.mockResolvedValueOnce === "function") {
-    requireAppUser.mockResolvedValueOnce({
+  if ("mockResolvedValue" in requireAppUser && typeof requireAppUser.mockResolvedValue === "function") {
+    requireAppUser.mockResolvedValue({
       session,
       userId: authSubject,
     } as never);
   }
 
-  if ("mockResolvedValueOnce" in ensureAppUser && typeof ensureAppUser.mockResolvedValueOnce === "function") {
-    ensureAppUser.mockResolvedValueOnce(authSubject);
+  if ("mockResolvedValue" in ensureAppUser && typeof ensureAppUser.mockResolvedValue === "function") {
+    ensureAppUser.mockResolvedValue(authSubject);
   }
 
   try {
