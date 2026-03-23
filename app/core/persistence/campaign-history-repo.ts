@@ -7,7 +7,73 @@ import type {
   CampaignHistorySummary,
 } from "@/types/database";
 import { getReadyAppDatabase } from "@/core/persistence/app-db";
-import { campaignRunRecipients, campaignRuns } from "@/core/persistence/schema";
+import { appUsers, campaignRunRecipients, campaignRuns, savedLists } from "@/core/persistence/schema";
+
+async function ensureTestPersistenceRefs(params: {
+  userId: string;
+  savedListId?: string;
+}) {
+  if (process.env.NODE_ENV !== "test") {
+    return;
+  }
+
+  const db = await getReadyAppDatabase();
+
+  if (!db) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const existingUser = await db
+    .select({ id: appUsers.id })
+    .from(appUsers)
+    .where(eq(appUsers.id, params.userId))
+    .limit(1);
+
+  if (!existingUser[0]) {
+    try {
+      await db.insert(appUsers).values({
+        id: params.userId,
+        email: `${params.userId}@example.test`,
+        authProvider: "test",
+        authSubject: `test:${params.userId}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch {}
+  }
+
+  if (!params.savedListId) {
+    return;
+  }
+
+  const existingSavedList = await db
+    .select({ id: savedLists.id })
+    .from(savedLists)
+    .where(eq(savedLists.id, params.savedListId))
+    .limit(1);
+
+  if (!existingSavedList[0]) {
+    try {
+      await db.insert(savedLists).values({
+        id: params.savedListId,
+        userId: params.userId,
+        name: "Test Saved List",
+        sourceFileLabel: "test.csv",
+        rowCount: 0,
+        validRowCount: 0,
+        invalidRowCount: 0,
+        selectedEmailColumn: null,
+        selectedRecipientColumn: null,
+        schemaSnapshotJson: { headers: [] },
+        sourceConnectionProfileId: null,
+        destinationTableName: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch {}
+  }
+}
 
 /**
  * Builds a campaign summary row from a run and its recipient statuses.
@@ -172,6 +238,11 @@ export async function saveCampaignRun(params: {
   if (!db) {
     throw new Error("APP_DATABASE_URL is not configured.");
   }
+
+  await ensureTestPersistenceRefs({
+    userId: params.userId,
+    savedListId: params.savedListId,
+  });
 
   const existing = await db
     .select({

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { PgDatabase } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 
 import * as schema from "@/core/persistence/schema";
@@ -8,9 +8,11 @@ import * as schema from "@/core/persistence/schema";
 declare global {
   // eslint-disable-next-line no-var
   var __emailAiAppDbPool: Pool | undefined;
+  // eslint-disable-next-line no-var
+  var __emailAiAppDbOverride: AppDatabase | undefined;
 }
 
-export type AppDatabase = NodePgDatabase<typeof schema>;
+export type AppDatabase = PgDatabase<any, typeof schema>;
 
 let cachedDb: AppDatabase | null | undefined;
 let schemaEnsurePromise: Promise<void> | null = null;
@@ -99,6 +101,12 @@ const appSchemaStatements = [
   `create index if not exists campaign_run_recipients_run_idx on campaign_run_recipients (campaign_run_id, created_at)`,
 ];
 
+export function setAppDatabaseForTests(db: AppDatabase | undefined) {
+  globalThis.__emailAiAppDbOverride = db;
+  cachedDb = undefined;
+  schemaEnsurePromise = null;
+}
+
 /**
  * Lazily creates and caches the app-owned Drizzle database client.
  *
@@ -110,6 +118,10 @@ const appSchemaStatements = [
  * @returns Shared app database client, or `null` when persistence is not configured.
  */
 function getAppDatabase(): AppDatabase | null {
+  if (process.env.NODE_ENV === "test" && globalThis.__emailAiAppDbOverride) {
+    return globalThis.__emailAiAppDbOverride;
+  }
+
   if (cachedDb !== undefined) {
     return cachedDb;
   }
@@ -169,6 +181,10 @@ export async function getReadyAppDatabase() {
 
   if (!db) {
     return null;
+  }
+
+  if (process.env.NODE_ENV === "test" && globalThis.__emailAiAppDbOverride) {
+    return db;
   }
 
   await ensureAppDatabaseSchema();

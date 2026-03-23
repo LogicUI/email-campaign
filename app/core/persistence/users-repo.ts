@@ -4,6 +4,31 @@ import { createId } from "@/core/utils/ids";
 import { getReadyAppDatabase } from "@/core/persistence/app-db";
 import { appUsers } from "@/core/persistence/schema";
 
+function isUniqueConstraintError(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "23505"
+  ) {
+    return true;
+  }
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "cause" in error &&
+    error.cause &&
+    typeof error.cause === "object" &&
+    "code" in error.cause &&
+    error.cause.code === "23505"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Ensures that the authenticated user exists in the app-owned persistence database.
  *
@@ -49,14 +74,42 @@ export async function ensureAppUser(params: {
 
   const userId = createId("user");
 
-  await db.insert(appUsers).values({
-    id: userId,
-    email: params.email,
-    authProvider: "google",
-    authSubject: params.authSubject,
-    createdAt: now,
-    updatedAt: now,
-  });
+  try {
+    await db.insert(appUsers).values({
+      id: userId,
+      email: params.email,
+      authProvider: "google",
+      authSubject: params.authSubject,
+      createdAt: now,
+      updatedAt: now,
+    });
 
-  return userId;
+    return userId;
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      throw error;
+    }
+
+    const concurrentExisting = await db
+      .select({
+        id: appUsers.id,
+      })
+      .from(appUsers)
+      .where(eq(appUsers.authSubject, params.authSubject))
+      .limit(1);
+
+    if (!concurrentExisting[0]) {
+      throw error;
+    }
+
+    await db
+      .update(appUsers)
+      .set({
+        email: params.email,
+        updatedAt: now,
+      })
+      .where(eq(appUsers.id, concurrentExisting[0].id));
+
+    return concurrentExisting[0].id;
+  }
 }

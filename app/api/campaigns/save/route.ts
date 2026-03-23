@@ -1,5 +1,7 @@
-import { successResponse, withApiHandler } from "@/api/_lib/api-response";
-import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
+import { successResponse } from "@/api/_lib/api-response";
+import { requireAppUser } from "@/api/_lib/app-user";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { ValidationError } from "@/core/errors/error-classes";
 import { markConnectionProfileSynced } from "@/core/persistence/connection-profiles-repo";
 import { saveCampaignRun } from "@/core/persistence/campaign-history-repo";
 import { getZodErrorMessage } from "@/zodSchemas/api";
@@ -9,7 +11,7 @@ export const POST = withApiHandler(async (request: Request) => {
   const auth = await requireAppUser();
 
   if ("response" in auth) {
-    throw new AuthenticationError("Authentication required");
+    return auth.response;
   }
 
   const body = await request.json();
