@@ -32,6 +32,7 @@ export function RecipientEmailCard({
 }: RecipientEmailCardProps) {
   const {
     onBodyChange,
+    onCcEmailsChange,
     onCheckedChange,
     onEmailChange,
     onRemove,
@@ -82,6 +83,31 @@ export function RecipientEmailCard({
                 <Send className="h-4 w-4" />
                 <span className="font-medium">From</span>
                 <span className="truncate">{senderEmail}</span>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`cc-${recipient.id}`} className="text-xs">
+                  CC Recipients (optional)
+                </Label>
+                <Input
+                  id={`cc-${recipient.id}`}
+                  type="text"
+                  placeholder="cc@example.com, another@example.com"
+                  value={recipient.ccEmails?.join(", ") || ""}
+                  onChange={(event) => {
+                    const emails = event.target.value
+                      .split(",")
+                      .map((e) => e.trim())
+                      .filter((e) => e.length > 0);
+                    onCcEmailsChange(emails);
+                  }}
+                  disabled={recipient.isSending || recipient.isRegenerating}
+                  className="h-8 text-sm"
+                />
+                {recipient.ccEmails && recipient.ccEmails.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {recipient.ccEmails.length} CC recipient{recipient.ccEmails.length > 1 ? "s" : ""}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>

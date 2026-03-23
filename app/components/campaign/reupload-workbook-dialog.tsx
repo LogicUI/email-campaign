@@ -12,17 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-interface ReuploadWorkbookDialogProps {
-  canAddFiles: boolean;
-  open: boolean;
-  savedWorkbook: SavedWorkbookRecord | null;
-  onAddFiles: () => void;
-  onChooseDifferentFile: () => void;
-  onOpenChange: (open: boolean) => void;
-  onUseSavedFile: () => void;
-  onRemoveSavedFiles?: (fileKeys: string[]) => Promise<SavedWorkbookRecord | null>;
-}
+import type { ReuploadWorkbookDialogProps } from "@/types/reupload-workbook-dialog";
 
 /**
  * Formats a saved workbook file size into a compact UI label.

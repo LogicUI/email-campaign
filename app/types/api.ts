@@ -1,4 +1,5 @@
 import type { LlmProvider } from "@/types/ai-settings";
+import type { Attachment } from "@/types/gmail";
 import type { PrimitiveFieldValue } from "@/types/campaign";
 
 export interface RegenerateRequest {
@@ -88,6 +89,8 @@ export interface SendPayloadRecipient {
   email: string;
   subject: string;
   body: string;
+  ccEmails?: string[];
+  attachments?: Attachment[];
 }
 
 export type ApiErrorCode = "REAUTH_REQUIRED" | "UNAUTHORIZED";

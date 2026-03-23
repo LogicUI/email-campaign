@@ -1,13 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { KeyRound, Orbit } from "lucide-react";
 
-import { AiSettingsDialog } from "@/components/settings/ai-settings-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAiSettings } from "@/hooks/use-ai-settings";
 import type { AiSettingsTriggerProps } from "@/types/ai-settings";
+
+const AiSettingsDialog = dynamic(
+  () => import("@/components/settings/ai-settings-dialog").then((mod) => mod.AiSettingsDialog),
+);
 
 export function AiSettingsStatusPill() {
   const { activeModel, activeProviderLabel, resolvedActiveProvider } = useAiSettings();

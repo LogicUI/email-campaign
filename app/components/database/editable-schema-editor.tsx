@@ -14,20 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { InferredDatabaseColumn } from "@/types/database";
-
-interface EditableSchemaEditorProps {
-  columns: InferredDatabaseColumn[];
-  onChange: (columns: InferredDatabaseColumn[]) => void;
-  previewRows: Array<{ rowIndex: number; values: string[] }>;
-  destinationColumns: Array<{
-    destinationColumn: string;
-    sourceHeader: string;
-    type?: string;
-    nullable?: boolean;
-  }>;
-  disabled?: boolean;
-}
+import type { EditableSchemaEditorProps } from "@/types/editable-schema-editor";
 
 /**
  * Reusable component for editing database table schema inferred from Excel data.

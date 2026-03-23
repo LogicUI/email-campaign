@@ -8,10 +8,29 @@ const requiredString = (message: string) => z.string().trim().min(1, message);
 
 const recipientEmailSchema = z.string().trim().email("Recipient email is invalid.");
 
+const ccEmailsSchema = z
+  .array(z.string().trim().email("Invalid CC email address."))
+  .optional()
+  .default([]);
+
+const attachmentSchema = z.object({
+  filename: z.string().trim().min(1, "Attachment filename is required."),
+  contentType: z.string().trim().min(1, "Attachment content type is required."),
+  data: z.string().trim().min(1, "Attachment data is required."),
+  size: z.number().optional(),
+});
+
+const attachmentsSchema = z
+  .array(attachmentSchema)
+  .optional()
+  .default([]);
+
 export const sendRecipientContentSchema = z.object({
   email: recipientEmailSchema,
+  ccEmails: ccEmailsSchema,
   subject: requiredString("Subject is required."),
   body: requiredString("Email body is required."),
+  attachments: attachmentsSchema,
 });
 
 const sendPayloadRecipientSchema = sendRecipientContentSchema.extend({
@@ -84,8 +103,10 @@ const regenerateProviderResponseSchema = z.object({
 
 export const testEmailRequestSchema = z.object({
   to: recipientEmailSchema,
+  ccEmails: ccEmailsSchema,
   subject: requiredString("Subject is required."),
   body: requiredString("Email body is required."),
+  attachments: attachmentsSchema,
 });
 
 export function getZodErrorMessage(error: z.ZodError) {

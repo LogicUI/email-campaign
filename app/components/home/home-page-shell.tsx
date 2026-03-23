@@ -1,12 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 
-import { CampaignBuilderPage } from "@/components/campaign/campaign-builder-page";
-import { DashboardHome } from "@/components/dashboard/dashboard-home";
-import { DatabaseSettingsDialog } from "@/components/settings/database-settings-dialog";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
 import type { DashboardSummaryResponseData, DatabaseSettingsOpenContext } from "@/types/database";
+
+const DashboardHome = dynamic(
+  () => import("@/components/dashboard/dashboard-home").then((mod) => mod.DashboardHome),
+);
+const CampaignBuilderPage = dynamic(
+  () => import("@/components/campaign/campaign-builder-page").then((mod) => mod.CampaignBuilderPage),
+);
+const DatabaseSettingsDialog = dynamic(
+  () =>
+    import("@/components/settings/database-settings-dialog").then(
+      (mod) => mod.DatabaseSettingsDialog,
+    ),
+);
 
 export function HomePageShell(props: {
   initialSummary: DashboardSummaryResponseData;

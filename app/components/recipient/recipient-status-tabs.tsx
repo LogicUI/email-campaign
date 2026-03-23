@@ -3,13 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { RecipientStatusView } from "@/types/campaign-store";
-
-interface RecipientStatusTabsProps {
-  sentCount: number;
-  unsentCount: number;
-  value: RecipientStatusView;
-  onValueChange: (value: RecipientStatusView) => void;
-}
+import type { RecipientStatusTabsProps } from "@/types/recipient-status-tabs";
 
 export function RecipientStatusTabs(props: RecipientStatusTabsProps) {
   const { sentCount, unsentCount, value, onValueChange } = props;
