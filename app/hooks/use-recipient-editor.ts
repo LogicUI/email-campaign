@@ -11,6 +11,7 @@ export function useRecipientEditor(recipientId: string) {
   const updateRecipientEmail = useCampaignStore((state) => state.updateRecipientEmail);
   const updateRecipientBody = useCampaignStore((state) => state.updateRecipientBody);
   const updateRecipientSubject = useCampaignStore((state) => state.updateRecipientSubject);
+  const updateRecipientCcEmails = useCampaignStore((state) => state.updateRecipientCcEmails);
   const toggleRecipientChecked = useCampaignStore((state) => state.toggleRecipientChecked);
 
   const callbacks = useMemo(
@@ -19,6 +20,7 @@ export function useRecipientEditor(recipientId: string) {
       onEmailChange: (email: string) => updateRecipientEmail(recipientId, email),
       onBodyChange: (body: string) => updateRecipientBody(recipientId, body),
       onSubjectChange: (subject: string) => updateRecipientSubject(recipientId, subject),
+      onCcEmailsChange: (ccEmails: string[]) => updateRecipientCcEmails(recipientId, ccEmails),
       onCheckedChange: (checked: boolean) => toggleRecipientChecked(recipientId, checked),
     }),
     [
@@ -26,6 +28,7 @@ export function useRecipientEditor(recipientId: string) {
       removeRecipient,
       toggleRecipientChecked,
       updateRecipientBody,
+      updateRecipientCcEmails,
       updateRecipientEmail,
       updateRecipientSubject,
     ],

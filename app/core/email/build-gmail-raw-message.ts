@@ -47,34 +47,99 @@ function encodeMimePart(value: string) {
  * This centralizes MIME construction so send routes can consistently generate both
  * text and HTML variants of the email body without duplicating low-level encoding.
  *
- * @param params Message sender, recipient, subject, and body variants.
+ * Supports attachments by using multipart/mixed structure when attachments are present.
+ *
+ * @param params Message sender, recipient, subject, body variants, and optional attachments.
  * @returns Base64url-encoded raw Gmail message payload.
  */
 export function buildGmailRawMessage(params: BuildGmailRawMessageParams) {
-  const boundary = `emailai_${randomUUID().replaceAll("-", "")}`;
-  const message = [
+  const hasAttachments = params.attachments && params.attachments.length > 0;
+
+  const outerBoundary = `emailai_outer_${randomUUID().replaceAll("-", "")}`;
+  const innerBoundary = `emailai_inner_${randomUUID().replaceAll("-", "")}`;
+
+  const ccHeader =
+    params.ccEmails && params.ccEmails.length > 0
+      ? `Cc: ${sanitizeHeaderValue(params.ccEmails.join(", "))}`
+      : "";
+
+  const headers = [
     `From: ${sanitizeHeaderValue(params.fromEmail)}`,
     `Reply-To: ${sanitizeHeaderValue(params.fromEmail)}`,
     `To: ${sanitizeHeaderValue(params.toEmail)}`,
+    ccHeader,
     `Subject: ${encodeHeaderValue(params.subject)}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    encodeMimePart(params.bodyText),
-    "",
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    encodeMimePart(params.bodyHtml),
-    "",
-    `--${boundary}--`,
-    "",
-  ].join("\r\n");
+  ];
+
+  const messageParts: string[] = [];
+
+  if (hasAttachments) {
+    // Use multipart/mixed for messages with attachments
+    headers.push(`Content-Type: multipart/mixed; boundary="${outerBoundary}"`);
+
+    // Add the body as multipart/alternative
+    messageParts.push(
+      "",
+      `--${outerBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${innerBoundary}"`,
+      "",
+      `--${innerBoundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      encodeMimePart(params.bodyText),
+      "",
+      `--${innerBoundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      encodeMimePart(params.bodyHtml),
+      "",
+      `--${innerBoundary}--`,
+      ""
+    );
+
+    // Add each attachment
+    for (const attachment of params.attachments) {
+      messageParts.push(
+        `--${outerBoundary}`,
+        `Content-Type: ${attachment.contentType}`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename="${sanitizeHeaderValue(attachment.filename)}"`,
+        "",
+        encodeMimePart(attachment.data),
+        ""
+      );
+    }
+
+    messageParts.push(`--${outerBoundary}--`, "");
+  } else {
+    // Use multipart/alternative for messages without attachments (original behavior)
+    headers.push(`Content-Type: multipart/alternative; boundary="${innerBoundary}"`);
+
+    messageParts.push(
+      "",
+      `--${innerBoundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      encodeMimePart(params.bodyText),
+      "",
+      `--${innerBoundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64",
+      "",
+      encodeMimePart(params.bodyHtml),
+      "",
+      `--${innerBoundary}--`,
+      ""
+    );
+  }
+
+  const message = [...headers, ...messageParts]
+    .filter((line) => line !== "")
+    .join("\r\n");
 
   return Buffer.from(message, "utf8").toString("base64url");
 }

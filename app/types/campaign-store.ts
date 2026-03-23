@@ -1,3 +1,4 @@
+import type { Attachment } from "@/types/gmail";
 import type { BulkSendResultItem } from "@/types/api";
 import type {
   Campaign,
@@ -33,6 +34,8 @@ export interface CreateCampaignFromPreviewPayload {
   name: string;
   globalSubject: string;
   globalBodyTemplate: string;
+  globalCcEmails?: string[];
+  globalAttachments?: Attachment[];
   sourceType?: Campaign["sourceType"];
   savedListId?: string;
 }
@@ -40,6 +43,8 @@ export interface CreateCampaignFromPreviewPayload {
 export interface UpdateGlobalTemplatePayload {
   globalSubject: string;
   globalBodyTemplate: string;
+  globalCcEmails?: string[];
+  globalAttachments?: Attachment[];
   applyMode: "untouched" | "all";
 }
 
@@ -81,6 +86,7 @@ export interface CampaignStoreActions {
   updateRecipientEmail: (id: string, email: string) => void;
   updateRecipientBody: (id: string, body: string) => void;
   updateRecipientSubject: (id: string, subject: string) => void;
+  updateRecipientCcEmails: (id: string, ccEmails: string[]) => void;
   toggleRecipientChecked: (id: string, checked?: boolean) => void;
   toggleRecipientsChecked: (ids: string[], checked: boolean) => void;
   setCurrentPage: (page: number) => void;

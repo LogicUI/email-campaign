@@ -1,3 +1,5 @@
+import type { Attachment } from "./gmail";
+
 export type PrimitiveFieldValue = string | number | boolean | null;
 
 export type SendStatus =
@@ -14,6 +16,8 @@ export interface Campaign {
   name: string;
   globalSubject: string;
   globalBodyTemplate: string;
+  globalCcEmails?: string[];
+  globalAttachments?: Attachment[];
   createdAt: string;
   sourceType:
     | "uploaded_list"
@@ -40,6 +44,8 @@ export interface CampaignRecipient {
   rowIndex: number;
   source: "imported" | "manual";
   email: string;
+  ccEmails?: string[];
+  attachments?: Attachment[];
   recipient?: string;
   sourceFileName?: string;
   sourceSheetName?: string;

@@ -85,6 +85,8 @@ export function useBulkSend(options?: {
         email: recipient.email,
         subject: recipient.subject,
         body: recipient.body,
+        ccEmails: recipient.ccEmails,
+        attachments: recipient.attachments,
       };
     });
 

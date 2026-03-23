@@ -1,3 +1,4 @@
+import type { Attachment } from "@/types/gmail";
 import { mergeTemplate } from "@/core/campaign/merge-template";
 import { createId } from "@/core/utils/ids";
 import type { CampaignRecipient, ImportPreviewRow } from "@/types/campaign";
@@ -11,20 +12,26 @@ import type { CampaignRecipient, ImportPreviewRow } from "@/types/campaign";
  * @param params.row Validated import preview row.
  * @param params.globalSubject Global subject template entered by the user.
  * @param params.globalBodyTemplate Global body template entered by the user.
+ * @param params.globalCcEmails Global CC email addresses.
+ * @param params.globalAttachments Global attachments to include with each recipient.
  * @returns Ready-to-edit campaign recipient draft.
  */
 export function buildRecipientDraft(params: {
   row: ImportPreviewRow;
   globalSubject: string;
   globalBodyTemplate: string;
+  globalCcEmails?: string[];
+  globalAttachments?: Attachment[];
 }): CampaignRecipient {
-  const { row, globalBodyTemplate, globalSubject } = params;
+  const { row, globalBodyTemplate, globalSubject, globalCcEmails, globalAttachments } = params;
 
   return {
     id: createId("recipient"),
     rowIndex: row.rowIndex,
     source: "imported",
     email: row.email ?? "",
+    ccEmails: globalCcEmails,
+    attachments: globalAttachments,
     recipient: row.recipient,
     sourceFileName: row.sourceFileName,
     sourceSheetName: row.sourceSheetName,

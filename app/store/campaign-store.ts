@@ -168,7 +168,7 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/closeComposeDialog",
         ),
 
-      createCampaignFromPreview: ({ name, globalSubject, globalBodyTemplate, sourceType, savedListId }) => {
+      createCampaignFromPreview: ({ name, globalSubject, globalBodyTemplate, globalCcEmails, globalAttachments, sourceType, savedListId }) => {
         const preview = get().importPreview;
 
         if (!preview) {
@@ -181,6 +181,8 @@ export const useCampaignStore = create<CampaignStore>()(
             row,
             globalSubject,
             globalBodyTemplate,
+            globalCcEmails,
+            globalAttachments,
           }),
         );
 
@@ -191,6 +193,8 @@ export const useCampaignStore = create<CampaignStore>()(
               name,
               globalSubject,
               globalBodyTemplate,
+              globalCcEmails,
+              globalAttachments,
               createdAt: new Date().toISOString(),
               sourceType:
                 sourceType ??
@@ -233,7 +237,7 @@ export const useCampaignStore = create<CampaignStore>()(
         );
       },
 
-      updateGlobalTemplate: ({ globalSubject, globalBodyTemplate, applyMode }) =>
+      updateGlobalTemplate: ({ globalSubject, globalBodyTemplate, globalCcEmails, globalAttachments, applyMode }) =>
         set(
           (state) => {
             if (!state.campaign) {
@@ -257,6 +261,8 @@ export const useCampaignStore = create<CampaignStore>()(
                     ...recipient,
                     subject: mergeTemplate(globalSubject, recipient.fields),
                     body: mergeTemplate(globalBodyTemplate, recipient.fields),
+                    ccEmails: globalCcEmails,
+                    attachments: globalAttachments,
                     bodySource: "global-template" as const,
                   },
                 ];
@@ -268,6 +274,8 @@ export const useCampaignStore = create<CampaignStore>()(
                 ...state.campaign,
                 globalSubject,
                 globalBodyTemplate,
+                globalCcEmails,
+                globalAttachments,
               },
               recipientsById,
               ui: {
@@ -294,6 +302,8 @@ export const useCampaignStore = create<CampaignStore>()(
               rowIndex: 0,
               source: "manual",
               email: "",
+              ccEmails: state.campaign.globalCcEmails,
+              attachments: state.campaign.globalAttachments,
               subject: mergeTemplate(state.campaign.globalSubject, {}),
               body: mergeTemplate(state.campaign.globalBodyTemplate, {}),
               checked: true,
@@ -426,6 +436,26 @@ export const useCampaignStore = create<CampaignStore>()(
           }),
           false,
           "campaign/updateRecipientSubject",
+        ),
+
+      updateRecipientCcEmails: (id, ccEmails) =>
+        set(
+          (state) => ({
+            recipientsById: {
+              ...state.recipientsById,
+              [id]: {
+                ...state.recipientsById[id],
+                ccEmails,
+              },
+            },
+            ui: {
+              ...state.ui,
+              needsDatabaseSync: true,
+              lastDatabaseSyncError: undefined,
+            },
+          }),
+          false,
+          "campaign/updateRecipientCcEmails",
         ),
 
       toggleRecipientChecked: (id, checked) =>

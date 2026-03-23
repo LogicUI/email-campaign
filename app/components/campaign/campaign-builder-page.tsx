@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo, useRef, useState } from "react";
 
 import { useBulkSend } from "@/hooks/use-bulk-send";
@@ -9,21 +10,54 @@ import { useRecipientPagination } from "@/hooks/use-recipient-pagination";
 import { useCampaignStore } from "@/store/campaign-store";
 import { selectRecipientOrder, selectRecipientsById, selectUi } from "@/store/selectors";
 import { CampaignActionBar } from "@/components/campaign/campaign-action-bar";
-import { CampaignComposeDialog } from "@/components/campaign/campaign-compose-dialog";
 import { CampaignHeaderBar } from "@/components/campaign/campaign-header-bar";
-import { ReuploadWorkbookDialog } from "@/components/campaign/reupload-workbook-dialog";
 import { SendSummaryBar } from "@/components/campaign/send-summary-bar";
-import { DatabaseSourceDialog } from "@/components/database/database-source-dialog";
 import { FileUploadDropzone } from "@/components/data-import/file-upload-dropzone";
-import { GoogleDriveImportDialog } from "@/components/google/google-drive-import-dialog";
-import { GoogleSheetsExportDialog } from "@/components/google/google-sheets-export-dialog";
-import { ImportPreviewDialog } from "@/components/data-import/import-preview-dialog";
 import { RecipientList } from "@/components/recipient/recipient-list";
 import { RecipientPaginationBar } from "@/components/recipient/recipient-pagination-bar";
 import { RecipientStatusTabs } from "@/components/recipient/recipient-status-tabs";
-import { DatabaseSettingsDialog } from "@/components/settings/database-settings-dialog";
 import { useDatabaseSessionStore } from "@/store/database-session-store";
 import type { CampaignBuilderPageProps } from "@/types/campaign-builder-page";
+
+const CampaignComposeDialog = dynamic(
+  () => import("@/components/campaign/campaign-compose-dialog").then((mod) => mod.CampaignComposeDialog),
+);
+const ReuploadWorkbookDialog = dynamic(
+  () =>
+    import("@/components/campaign/reupload-workbook-dialog").then(
+      (mod) => mod.ReuploadWorkbookDialog,
+    ),
+);
+const DatabaseSourceDialog = dynamic(
+  () =>
+    import("@/components/database/database-source-dialog").then(
+      (mod) => mod.DatabaseSourceDialog,
+    ),
+);
+const GoogleDriveImportDialog = dynamic(
+  () =>
+    import("@/components/google/google-drive-import-dialog").then(
+      (mod) => mod.GoogleDriveImportDialog,
+    ),
+);
+const GoogleSheetsExportDialog = dynamic(
+  () =>
+    import("@/components/google/google-sheets-export-dialog").then(
+      (mod) => mod.GoogleSheetsExportDialog,
+    ),
+);
+const ImportPreviewDialog = dynamic(
+  () =>
+    import("@/components/data-import/import-preview-dialog").then(
+      (mod) => mod.ImportPreviewDialog,
+    ),
+);
+const DatabaseSettingsDialog = dynamic(
+  () =>
+    import("@/components/settings/database-settings-dialog").then(
+      (mod) => mod.DatabaseSettingsDialog,
+    ),
+);
 
 export function CampaignBuilderPage({
   connectionProfiles = [],

@@ -1,11 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Database, FileText, LogOut, Menu, Orbit, Upload, LayoutGrid } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { performClientSignOut } from "@/core/auth/client-sign-out";
-import { AiSettingsDialog } from "@/components/settings/ai-settings-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,14 +15,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import type { CampaignActionBarProps } from "@/types/campaign-action-bar";
 
-interface CampaignActionBarProps {
-  hasCampaign: boolean;
-  onOpenDashboard?: () => void;
-  onOpenDatabaseSettings: () => void;
-  onEditTemplate: () => void;
-  onReupload: () => void;
-}
+const AiSettingsDialog = dynamic(
+  () => import("@/components/settings/ai-settings-dialog").then((mod) => mod.AiSettingsDialog),
+);
 
 export function CampaignActionBar(props: CampaignActionBarProps) {
   const { hasCampaign, onEditTemplate, onOpenDashboard, onOpenDatabaseSettings, onReupload } = props;

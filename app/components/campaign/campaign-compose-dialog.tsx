@@ -8,6 +8,8 @@ import {
   MAX_REGENERATE_PROMPT_LENGTH,
 } from "@/core/ai/regenerate-guardrails";
 import { useGlobalTemplateRegenerate } from "@/hooks/use-global-template-regenerate";
+import { AttachmentList } from "@/components/campaign/attachment-list";
+import { AttachmentUpload } from "@/components/campaign/attachment-upload";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { Attachment } from "@/types/gmail";
 import type { CampaignComposeDialogProps } from "@/types/campaign-compose-dialog";
 
 const DEFAULT_CAMPAIGN_NAME = "Intro outreach campaign";
@@ -76,6 +79,9 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
   const [name, setName] = useState(campaign?.name ?? defaults.name);
   const [subject, setSubject] = useState(campaign?.globalSubject ?? defaults.subject);
   const [body, setBody] = useState(campaign?.globalBodyTemplate ?? defaults.body);
+  const [ccEmails, setCcEmails] = useState<string[]>(campaign?.globalCcEmails ?? []);
+  const [attachments, setAttachments] = useState<Attachment[]>(campaign?.globalAttachments ?? []);
+  const [attachmentError, setAttachmentError] = useState<string | undefined>();
   const [applyMode, setApplyMode] = useState<"untouched" | "all">("untouched");
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
   const [prompt, setPrompt] = useState(DEFAULT_GLOBAL_TEMPLATE_REGENERATE_PROMPT);
@@ -84,6 +90,9 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
     setName(campaign?.name ?? defaults.name);
     setSubject(campaign?.globalSubject ?? defaults.subject);
     setBody(campaign?.globalBodyTemplate ?? defaults.body);
+    setCcEmails(campaign?.globalCcEmails ?? []);
+    setAttachments(campaign?.globalAttachments ?? []);
+    setAttachmentError(undefined);
   }, [campaign, defaults.body, defaults.name, defaults.subject, open]);
 
   useEffect(() => {
@@ -100,7 +109,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {campaign ? "Edit global message" : "Define campaign message"}
@@ -112,7 +121,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4">
+          <div className="grid gap-3 sm:gap-4">
             {!campaign ? (
               <div className="space-y-2">
                 <Label htmlFor="campaign-name">Campaign name</Label>
@@ -134,13 +143,52 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="global-cc">CC recipients (optional)</Label>
+              <Input
+                id="global-cc"
+                type="text"
+                placeholder="cc@example.com, another@example.com"
+                value={ccEmails.join(", ")}
+                onChange={(event) => {
+                  const emails = event.target.value
+                    .split(",")
+                    .map((e) => e.trim())
+                    .filter((e) => e.length > 0);
+                  setCcEmails(emails);
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Separate multiple email addresses with commas
+              </p>
+            </div>
+
+            <AttachmentUpload
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
+              error={attachmentError}
+              onErrorChange={setAttachmentError}
+            />
+
+            {attachments.length > 0 ? (
+              <AttachmentList
+                attachments={attachments}
+                onRemove={(index) => {
+                  const newAttachments = attachments.filter((_, i) => i !== index);
+                  setAttachments(newAttachments);
+                  setAttachmentError(undefined);
+                }}
+              />
+            ) : null}
+
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <Label htmlFor="global-body">Global body template</Label>
                 {campaign ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="w-full sm:w-auto"
                     onClick={() => setRegenerateDialogOpen(true)}
                   >
                     Regenerate with prompt
@@ -151,7 +199,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
                 id="global-body"
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
-                className="min-h-[220px]"
+                className="min-h-[150px] sm:min-h-[220px]"
               />
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
             </div>
@@ -183,6 +231,8 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
                   name,
                   globalSubject: subject,
                   globalBodyTemplate: body,
+                  globalCcEmails: ccEmails,
+                  globalAttachments: attachments,
                   applyMode,
                 })
               }
@@ -211,7 +261,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
               value={prompt}
               maxLength={MAX_REGENERATE_PROMPT_LENGTH}
               onChange={(event) => setPrompt(event.target.value)}
-              className="min-h-[180px]"
+              className="min-h-[120px] sm:min-h-[180px]"
             />
             <p className="text-xs text-muted-foreground">
               {prompt.length}/{MAX_REGENERATE_PROMPT_LENGTH} characters
