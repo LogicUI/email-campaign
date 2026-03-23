@@ -12,9 +12,11 @@ export async function sendGmailMessage(params: SendGmailMessageParams) {
       raw: buildGmailRawMessage({
         bodyHtml: params.bodyHtml,
         bodyText: params.bodyText,
+        ccEmails: params.ccEmails,
         fromEmail: params.fromEmail,
         subject: params.subject,
         toEmail: params.toEmail,
+        attachments: params.attachments,
       }),
     }),
   });

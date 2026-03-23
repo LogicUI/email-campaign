@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-
 import { buildImportPreview } from "@/core/excel/build-import-preview";
 import type { ImportPreview } from "@/types/campaign";
 
@@ -14,6 +12,7 @@ import type { ImportPreview } from "@/types/campaign";
  * @returns Import preview derived from the first worksheet in the file.
  */
 export async function parseWorkbookFile(file: File): Promise<ImportPreview> {
+  const XLSX = await import("xlsx");
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, {
     type: "array",

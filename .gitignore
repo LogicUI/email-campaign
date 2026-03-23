@@ -14,6 +14,7 @@ test-results/
 tsconfig.tsbuildinfo
 !AGENTS.md
 !app/tests/fixtures/*.csv
+*.md 
 
 # Claude Code project-local settings
 .claude/
