@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+
+// Force dynamic rendering - don't pre-render at build time
+// This page requires auth session which isn't available during build
+export const dynamic = "force-dynamic";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
