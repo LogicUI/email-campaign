@@ -294,7 +294,9 @@ export async function saveCampaignRun(params: {
         subject: recipient.subject,
         body: recipient.body,
         fieldsJson: recipient.fields,
-        sendStatus: recipient.status,
+        sendStatus: recipient.status === "ready" || recipient.status === "skipped"
+          ? "draft"
+          : recipient.status ?? "draft",
         errorMessage: recipient.errorMessage ?? null,
         providerMessageId: recipient.lastProviderMessageId ?? null,
         sentAt: recipient.status === "sent" ? recipient.lastSendAttemptAt ?? now : null,
