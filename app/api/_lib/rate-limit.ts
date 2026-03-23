@@ -17,10 +17,15 @@ interface RateLimitConfig {
 }
 
 /**
+ * Rate limit category type.
+ */
+export type RateLimitCategory = keyof typeof limiters;
+
+/**
  * Rate limit categories with their configurations.
  * Maps to the same limits as the previous implementation.
  */
-export const RATE_LIMITS: Record<string, RateLimitConfig> = {
+const RATE_LIMITS: Record<string, RateLimitConfig> = {
   // Default: 100 requests per minute
   default: { points: 100, duration: 60 },
 

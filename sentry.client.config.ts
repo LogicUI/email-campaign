@@ -6,7 +6,6 @@
  */
 
 import * as Sentry from "@sentry/nextjs";
-import { BrowserTracing } from "@sentry/nextjs";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -18,14 +17,6 @@ Sentry.init({
   // Session replay
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
-
-  // Browser tracing integration
-  integrations: [
-    new BrowserTracing({
-      // Set custom tracing options
-      tracePropagationTargets: ["localhost", /^\//],
-    }),
-  ],
 
   // Filter sensitive data
   beforeSend(event, hint) {

@@ -52,14 +52,14 @@ export async function mockAuthenticatedUser(user: MockAuthUser): Promise<Session
   const authSubject = user.authSubject || user.id || user.email;
 
   if ("mockResolvedValueOnce" in requireAppUser && typeof requireAppUser.mockResolvedValueOnce === "function") {
-    requireAppUser.mockResolvedValue({
+    requireAppUser.mockResolvedValueOnce({
       session,
       userId: authSubject,
     } as never);
   }
 
   if ("mockResolvedValueOnce" in ensureAppUser && typeof ensureAppUser.mockResolvedValueOnce === "function") {
-    ensureAppUser.mockResolvedValue(authSubject);
+    ensureAppUser.mockResolvedValueOnce(authSubject);
   }
 
   try {
@@ -114,7 +114,7 @@ export function mockUnauthenticatedUser(): void {
   vi.mocked(requireApiSession).mockResolvedValue(unauthorizedResponse as never);
 
   if ("mockResolvedValueOnce" in requireAppUser && typeof requireAppUser.mockResolvedValueOnce === "function") {
-    requireAppUser.mockResolvedValue(unauthorizedResponse as never);
+    requireAppUser.mockResolvedValueOnce(unauthorizedResponse as never);
   }
 }
 
@@ -137,7 +137,7 @@ function mockReauthenticationRequired(): void {
   vi.mocked(requireApiSession).mockResolvedValue(reauthResponse as never);
 
   if ("mockResolvedValueOnce" in requireAppUser && typeof requireAppUser.mockResolvedValueOnce === "function") {
-    requireAppUser.mockResolvedValue(reauthResponse as never);
+    requireAppUser.mockResolvedValueOnce(reauthResponse as never);
   }
 }
 

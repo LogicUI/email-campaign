@@ -1,5 +1,6 @@
 import type {
   CampaignHistoryDetail,
+  CampaignHistoryRecipientRecord,
   CampaignHistorySummary,
   DatabaseConnectionProfile,
   SavedListDetail,
@@ -102,6 +103,29 @@ export function createTestRecipients(
     errorMessage: overrides.errorMessage,
     lastProviderMessageId: overrides.lastProviderMessageId,
     lastSendAttemptAt: overrides.lastSendAttemptAt,
+  }));
+}
+
+/**
+ * Converts CampaignRecipient[] to CampaignHistoryRecipientRecord[]
+ *
+ * @param recipients - Array of campaign recipients
+ * @returns Array of campaign history recipient records
+ */
+function convertToHistoryRecipients(recipients: CampaignRecipient[]): CampaignHistoryRecipientRecord[] {
+  return recipients.map((recipient) => ({
+    id: recipient.id,
+    email: recipient.email,
+    recipient: recipient.recipient,
+    subject: recipient.subject,
+    body: recipient.body,
+    fields: recipient.fields,
+    sendStatus: recipient.status === "ready" || recipient.status === "skipped"
+      ? "draft"
+      : recipient.status,
+    errorMessage: recipient.errorMessage,
+    providerMessageId: recipient.lastProviderMessageId,
+    sentAt: recipient.lastSendAttemptAt,
   }));
 }
 
@@ -237,6 +261,6 @@ export function createTestCampaignDetail(
     ...campaign,
     globalSubject: overrides.globalSubject || "Test Global Subject",
     globalBodyTemplate: overrides.globalBodyTemplate || "Test global body with {{name}} placeholder",
-    recipients: overrides.recipients || createTestRecipients(recipientCount),
+    recipients: overrides.recipients || convertToHistoryRecipients(createTestRecipients(recipientCount)),
   };
 }

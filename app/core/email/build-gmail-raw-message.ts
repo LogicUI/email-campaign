@@ -101,7 +101,7 @@ export function buildGmailRawMessage(params: BuildGmailRawMessageParams) {
     );
 
     // Add each attachment
-    for (const attachment of params.attachments) {
+    for (const attachment of params.attachments!) {
       messageParts.push(
         `--${outerBoundary}`,
         `Content-Type: ${attachment.contentType}`,

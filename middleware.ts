@@ -3,14 +3,14 @@ import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 import { getAuthSecret } from "@/core/auth/auth-env";
-import { rateLimitMiddleware, RATE_LIMITS } from "@/api/_lib/rate-limit";
+import { rateLimitMiddleware, type RateLimitCategory } from "@/api/_lib/rate-limit";
 
 const PUBLIC_PATHS = new Set(["/login"]);
 
 /**
  * Determine rate limit category based on request path.
  */
-function getRateLimitCategory(pathname: string): keyof typeof RATE_LIMITS {
+function getRateLimitCategory(pathname: string): RateLimitCategory {
   if (pathname.startsWith("/api/ai")) return "ai";
   if (pathname.startsWith("/api/send/bulk")) return "bulk";
   if (pathname.startsWith("/api/auth")) return "auth";
