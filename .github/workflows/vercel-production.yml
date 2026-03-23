@@ -21,6 +21,8 @@ jobs:
     name: Install, Build, Lint, Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
 
     steps:
       - name: Checkout
