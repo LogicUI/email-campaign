@@ -1,9 +1,16 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 
+import { setAppDatabaseForTests } from "@/core/persistence/app-db";
 import { initialAiSettingsState, useAiSettingsStore } from "@/store/ai-settings-store";
 import { useCampaignStore } from "@/store/campaign-store";
+import {
+  cleanupTestDatabase,
+  getAppTestDatabase,
+  initializeTestDatabase,
+  resetTestDatabase,
+} from "@/tests/setup/test-database";
 import {
   getMockPathname,
   getMockSearchParams,
@@ -23,7 +30,10 @@ vi.mock("next/navigation", () => ({
 
 const initialStoreState = useCampaignStore.getState();
 
-beforeAll(() => {
+beforeAll(async () => {
+  await initializeTestDatabase();
+  setAppDatabaseForTests(getAppTestDatabase());
+
   process.env.AUTH_SECRET = "test-auth-secret";
   process.env.AUTH_GOOGLE_ID = "google-client-id";
   process.env.AUTH_GOOGLE_SECRET = "google-client-secret";
@@ -65,6 +75,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  resetTestDatabase();
   localStorage.clear();
   useAiSettingsStore.setState(initialAiSettingsState);
   useCampaignStore.setState(initialStoreState, true);
@@ -75,4 +86,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+});
+
+afterAll(async () => {
+  setAppDatabaseForTests(undefined);
+  await cleanupTestDatabase();
 });
