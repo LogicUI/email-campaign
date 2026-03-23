@@ -11,19 +11,15 @@ import type { ZodError } from "zod";
 
 import {
   AppError,
-  isOperationalError,
-  getErrorStatusCode,
-  sanitizeErrorMessage,
-  ValidationError,
+  InternalServerError,
 } from "@/core/errors/error-classes";
 import { generateCorrelationId } from "@/core/errors/correlation-id";
-import { getZodErrorMessage } from "@/zodSchemas/api";
 
 /**
  * Flatten Zod error into a readable message.
  */
 function flattenZodError(error: ZodError): string {
-  return error.errors
+  return error.issues
     .map((e) => `${e.path.join(".")}: ${e.message}`)
     .join(", ");
 }
@@ -55,7 +51,7 @@ function logError(error: unknown, context: Record<string, unknown>) {
  * @param request - Optional request for context
  * @returns NextResponse with appropriate error status and body
  */
-export async function handleApiError(
+async function handleApiError(
   error: unknown,
   request?: Request
 ): Promise<NextResponse> {
@@ -114,8 +110,8 @@ function isZodError(error: unknown): error is ZodError {
   return (
     typeof error === "object" &&
     error !== null &&
-    "errors" in error &&
-    Array.isArray((error as ZodError).errors)
+    "issues" in error &&
+    Array.isArray((error as ZodError).issues)
   );
 }
 
@@ -144,34 +140,21 @@ function isZodError(error: unknown): error is ZodError {
  * });
  * ```
  */
-export function withApiHandler(
-  handler: (request: Request) => Promise<NextResponse>
-): (request: Request) => Promise<NextResponse> {
-  return async (request: Request): Promise<NextResponse> => {
+export function withApiHandler<TContext = undefined>(
+  handler: (
+    request: Request,
+    context: TContext
+  ) => Promise<Response | NextResponse>
+): (request: Request, context: TContext) => Promise<Response | NextResponse> {
+  return async (
+    request: Request,
+    context: TContext
+  ): Promise<Response | NextResponse> => {
     try {
-      return await handler(request);
+      return await handler(request, context);
     } catch (error) {
       return handleApiError(error, request);
     }
   };
 }
 
-/**
- * Re-throw unknown errors as InternalServerError.
- *
- * Use this when you want to ensure all errors are AppError instances.
- *
- * @param error - Unknown error
- * @returns AppError instance
- */
-export function ensureAppError(error: unknown): AppError {
-  if (error instanceof AppError) {
-    return error;
-  }
-
-  if (error instanceof Error) {
-    return new InternalServerError(error.message);
-  }
-
-  return new InternalServerError(String(error));
-}

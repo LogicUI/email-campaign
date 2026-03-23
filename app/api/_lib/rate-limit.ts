@@ -11,7 +11,7 @@ import type { NextRequest } from "next/server";
 /**
  * Rate limit configuration for different endpoint categories.
  */
-export interface RateLimitConfig {
+interface RateLimitConfig {
   points: number; // Number of requests allowed
   duration: number; // Time window in seconds
 }
@@ -49,7 +49,7 @@ const limiters = {
  * Rate limit check result.
  * Maintains compatibility with the previous implementation.
  */
-export interface RateLimitResult {
+interface RateLimitResult {
   allowed: boolean;
   limit: number;
   remaining: number;
@@ -83,7 +83,7 @@ export interface RateLimitResult {
  * }
  * ```
  */
-export async function checkRateLimit(
+async function checkRateLimit(
   identifier: string,
   category: keyof typeof limiters = "default"
 ): Promise<RateLimitResult> {
@@ -121,7 +121,7 @@ export async function checkRateLimit(
  * @param userId - Optional authenticated user ID
  * @returns Identifier string for rate limiting
  */
-export function getRateLimitIdentifier(
+function getRateLimitIdentifier(
   request: NextRequest,
   userId?: string
 ): string {
