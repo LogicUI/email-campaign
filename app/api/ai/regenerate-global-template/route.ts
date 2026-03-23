@@ -1,5 +1,7 @@
-import { successResponse, withApiHandler } from "@/api/_lib/api-response";
-import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
+import { requireApiSession } from "@/api/_lib/api-auth";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { ValidationError } from "@/core/errors/error-classes";
 import { buildGlobalTemplateRegeneratePrompt } from "@/core/ai/build-global-template-regenerate-prompt";
 import { dispatchRegenerate } from "@/core/ai/dispatch-regenerate";
 import { AI_PROVIDER_CATALOG } from "@/core/ai/provider-defaults";
@@ -13,7 +15,7 @@ export const POST = withApiHandler(async (request: Request) => {
   const authResult = await requireApiSession();
 
   if ("response" in authResult) {
-    throw new AuthenticationError("Authentication required");
+    return authResult.response;
   }
 
   const body = await request.json();

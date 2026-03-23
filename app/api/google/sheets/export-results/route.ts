@@ -1,18 +1,19 @@
 import { NextRequest } from "next/server";
 
-import { successResponse, withApiHandler } from "@/api/_lib/api-response";
-import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
 import { createAuthErrorResponse, getAuthToken, requireApiSession } from "@/api/_lib/api-auth";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { ValidationError } from "@/core/errors/error-classes";
 import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/google-access-token";
 import { appendCampaignResultsToGoogleSheet } from "@/core/integrations/google-sheets-client";
 import { getZodErrorMessage } from "@/zodSchemas/api";
 import { exportGoogleSheetResultsRequestSchema } from "@/zodSchemas/google";
 
-export const POST = withApiHandler(async (request: NextRequest) => {
+export const POST = withApiHandler(async (request: Request) => {
   const auth = await requireApiSession();
 
   if ("response" in auth) {
-    throw new AuthenticationError("Authentication required");
+    return auth.response;
   }
 
   const body = await request.json();
@@ -23,14 +24,15 @@ export const POST = withApiHandler(async (request: NextRequest) => {
   }
 
   const payload = parsedPayload.data;
-  const authToken = await getAuthToken(request);
+  const req = request as unknown as NextRequest;
+  const authToken = await getAuthToken(req);
 
   let accessToken: string;
   try {
     accessToken = await getValidGoogleAccessToken(authToken);
   } catch (error) {
     if (error instanceof ReauthRequiredError) {
-      throw new AuthenticationError("Google access expired. Sign in again to continue.");
+      return createAuthErrorResponse("REAUTH_REQUIRED");
     }
     throw error;
   }

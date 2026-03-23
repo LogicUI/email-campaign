@@ -1,5 +1,7 @@
-import { successResponse, withApiHandler } from "@/api/_lib/api-response";
-import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
+import { requireAppUser } from "@/api/_lib/app-user";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { ValidationError } from "@/core/errors/error-classes";
 import { testPostgresConnection } from "@/core/database/postgres-connector";
 import { getZodErrorMessage } from "@/zodSchemas/api";
 import { testDatabaseConnectionRequestSchema } from "@/zodSchemas/database";
@@ -8,7 +10,7 @@ export const POST = withApiHandler(async (request: Request) => {
   const auth = await requireAppUser();
 
   if ("response" in auth) {
-    throw new AuthenticationError("Authentication required");
+    return auth.response;
   }
 
   const body = await request.json();
@@ -18,7 +20,13 @@ export const POST = withApiHandler(async (request: Request) => {
     throw new ValidationError(getZodErrorMessage(parsedPayload.error));
   }
 
-  await testPostgresConnection(parsedPayload.data.connection);
+  try {
+    await testPostgresConnection(parsedPayload.data.connection);
+  } catch (error) {
+    throw new ValidationError(
+      error instanceof Error ? error.message : "Database connection failed."
+    );
+  }
 
   return successResponse({
     reachable: true,

@@ -1,6 +1,6 @@
 import { requireApiSession } from "@/api/_lib/api-auth";
 import { withApiHandler } from "@/api/_lib/error-handler";
-import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
+import { ValidationError } from "@/core/errors/error-classes";
 import { buildRegeneratePrompt } from "@/core/ai/build-regenerate-prompt";
 import { dispatchRegenerate } from "@/core/ai/dispatch-regenerate";
 import { AI_PROVIDER_CATALOG } from "@/core/ai/provider-defaults";
@@ -14,7 +14,7 @@ export const POST = withApiHandler(async (request: Request) => {
   const authResult = await requireApiSession();
 
   if ("response" in authResult) {
-    throw new AuthenticationError("Authentication required");
+    return authResult.response;
   }
 
   const body = await request.json();

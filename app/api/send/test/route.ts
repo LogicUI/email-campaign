@@ -1,8 +1,13 @@
 import { NextRequest } from "next/server";
 
-import { getAuthToken, requireApiSession } from "@/api/_lib/api-auth";
-import { successResponse, withApiHandler } from "@/api/_lib/error-handler";
-import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
+import {
+  createAuthErrorResponse,
+  getAuthToken,
+  requireApiSession,
+} from "@/api/_lib/api-auth";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { ValidationError } from "@/core/errors/error-classes";
 import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/google-access-token";
 import { renderHtmlFromText } from "@/core/email/render-email";
 import { sendGmailMessage } from "@/core/integrations/gmail-client";
@@ -12,7 +17,7 @@ export const POST = withApiHandler(async (request: Request) => {
   const authResult = await requireApiSession();
 
   if ("response" in authResult) {
-    throw new AuthenticationError("Authentication required");
+    return authResult.response;
   }
 
   const body = await request.json();
@@ -31,7 +36,7 @@ export const POST = withApiHandler(async (request: Request) => {
     accessToken = await getValidGoogleAccessToken(authToken);
   } catch (error) {
     if (error instanceof ReauthRequiredError) {
-      throw new AuthenticationError("Google access expired. Sign in again to continue.");
+      return createAuthErrorResponse("REAUTH_REQUIRED");
     }
     throw error;
   }
@@ -40,6 +45,7 @@ export const POST = withApiHandler(async (request: Request) => {
     accessToken,
     bodyHtml: renderHtmlFromText(payload.body),
     bodyText: payload.body,
+    ccEmails: payload.ccEmails,
     fromEmail: authResult.session.user.email,
     subject: payload.subject,
     toEmail: payload.to,

@@ -1,8 +1,12 @@
 import { NextRequest } from "next/server";
 
-import { getAuthToken, requireApiSession } from "@/api/_lib/api-auth";
-import { successResponse, withApiHandler } from "@/api/_lib/error-handler";
-import { AuthenticationError } from "@/core/errors/error-classes";
+import {
+  createAuthErrorResponse,
+  getAuthToken,
+  requireApiSession,
+} from "@/api/_lib/api-auth";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
 import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/google-access-token";
 import { listGoogleSpreadsheetFiles } from "@/core/integrations/google-drive-client";
 import type { GoogleDriveFilesResponseData } from "@/types/google";
@@ -11,7 +15,7 @@ export const GET = withApiHandler(async (request: Request) => {
   const auth = await requireApiSession();
 
   if ("response" in auth) {
-    throw new AuthenticationError("Authentication required");
+    return auth.response;
   }
 
   const req = request as unknown as NextRequest;
@@ -22,7 +26,7 @@ export const GET = withApiHandler(async (request: Request) => {
     accessToken = await getValidGoogleAccessToken(authToken);
   } catch (error) {
     if (error instanceof ReauthRequiredError) {
-      throw new AuthenticationError("Google access expired. Sign in again to continue.");
+      return createAuthErrorResponse("REAUTH_REQUIRED");
     }
     throw error;
   }

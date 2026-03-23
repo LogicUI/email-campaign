@@ -1,5 +1,7 @@
-import { successResponse, withApiHandler } from "@/api/_lib/api-response";
-import { AuthenticationError, NotFoundError, ValidationError } from "@/core/errors/error-classes";
+import { requireAppUser } from "@/api/_lib/app-user";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { NotFoundError, ValidationError } from "@/core/errors/error-classes";
 import { updateConnectionProfileSyncMode } from "@/core/persistence/connection-profiles-repo";
 import { getZodErrorMessage } from "@/zodSchemas/api";
 import { updateConnectionProfileRequestSchema } from "@/zodSchemas/database";
@@ -9,7 +11,7 @@ export const PATCH = withApiHandler(
     const auth = await requireAppUser();
 
     if ("response" in auth) {
-      throw new AuthenticationError("Authentication required");
+      return auth.response;
     }
 
     const body = await request.json();

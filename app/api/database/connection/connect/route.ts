@@ -1,5 +1,7 @@
-import { successResponse, withApiHandler } from "@/api/_lib/api-response";
-import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
+import { requireAppUser } from "@/api/_lib/app-user";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { ValidationError } from "@/core/errors/error-classes";
 import {
   listPostgresTables,
   normalizeConnectionProfile,
@@ -13,7 +15,7 @@ export const POST = withApiHandler(async (request: Request) => {
   const auth = await requireAppUser();
 
   if ("response" in auth) {
-    throw new AuthenticationError("Authentication required");
+    return auth.response;
   }
 
   const body = await request.json();
@@ -24,18 +26,27 @@ export const POST = withApiHandler(async (request: Request) => {
   }
 
   const data = parsedPayload.data;
-  await testPostgresConnection(data.connection);
-  const metadata = normalizeConnectionProfile(data.connection);
-  const profile = await upsertConnectionProfile({
-    userId: auth.userId,
-    provider: data.connection.provider,
-    label: metadata.label,
-    displayHost: metadata.displayHost,
-    displayDatabaseName: metadata.displayDatabaseName,
-    displayProjectRef: metadata.displayProjectRef,
-    syncMode: data.connection.syncMode,
-  });
-  const tables = await listPostgresTables(data.connection);
+  let profile: Awaited<ReturnType<typeof upsertConnectionProfile>>;
+  let tables: Awaited<ReturnType<typeof listPostgresTables>>;
+
+  try {
+    await testPostgresConnection(data.connection);
+    const metadata = normalizeConnectionProfile(data.connection);
+    profile = await upsertConnectionProfile({
+      userId: auth.userId,
+      provider: data.connection.provider,
+      label: metadata.label,
+      displayHost: metadata.displayHost,
+      displayDatabaseName: metadata.displayDatabaseName,
+      displayProjectRef: metadata.displayProjectRef,
+      syncMode: data.connection.syncMode,
+    });
+    tables = await listPostgresTables(data.connection);
+  } catch (error) {
+    throw new ValidationError(
+      error instanceof Error ? error.message : "Database connection failed."
+    );
+  }
 
   return successResponse({
     connectionProfile: profile,

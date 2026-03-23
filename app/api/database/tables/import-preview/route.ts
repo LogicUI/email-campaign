@@ -1,5 +1,7 @@
-import { successResponse, withApiHandler } from "@/api/_lib/api-response";
-import { AuthenticationError, ValidationError } from "@/core/errors/error-classes";
+import { requireApiSession } from "@/api/_lib/api-auth";
+import { successResponse } from "@/api/_lib/api-response";
+import { withApiHandler } from "@/api/_lib/error-handler";
+import { ValidationError } from "@/core/errors/error-classes";
 import { fetchRowsFromPostgresTable } from "@/core/database/postgres-connector";
 import { buildImportPreview } from "@/core/excel/build-import-preview";
 import { getZodErrorMessage } from "@/zodSchemas/api";
@@ -9,7 +11,7 @@ export const POST = withApiHandler(async (request: Request) => {
   const auth = await requireApiSession();
 
   if ("response" in auth) {
-    throw new AuthenticationError("Authentication required");
+    return auth.response;
   }
 
   const body = await request.json();
