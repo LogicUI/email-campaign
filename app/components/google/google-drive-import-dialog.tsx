@@ -68,7 +68,7 @@ export function GoogleDriveImportDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(94vw,42rem)]">
+      <DialogContent className="w-[min(94vw,42rem)] p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderSearch className="h-5 w-5" />

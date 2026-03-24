@@ -10,6 +10,8 @@ import {
 import { useRecipientEditor } from "@/hooks/use-recipient-editor";
 import { useRecipientRegenerate } from "@/hooks/use-recipient-regenerate";
 import { RecipientCardToolbar } from "@/components/recipient/recipient-card-toolbar";
+import { AttachmentUpload } from "@/components/campaign/attachment-upload";
+import { AttachmentList } from "@/components/campaign/attachment-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +33,7 @@ export function RecipientEmailCard({
   senderEmail,
 }: RecipientEmailCardProps) {
   const {
+    onAttachmentsChange,
     onBodyChange,
     onCcEmailsChange,
     onCheckedChange,
@@ -42,6 +45,7 @@ export function RecipientEmailCard({
   const { error, isRegenerating, regenerate } = useRecipientRegenerate(recipientId);
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
   const [prompt, setPrompt] = useState(DEFAULT_REGENERATE_PROMPT);
+  const [attachmentError, setAttachmentError] = useState<string | undefined>();
 
   useEffect(() => {
     if (!regenerateDialogOpen) {
@@ -75,6 +79,7 @@ export function RecipientEmailCard({
                   value={recipient.email}
                   onChange={(event) => onEmailChange(event.target.value)}
                   disabled={recipient.isSending || recipient.isRegenerating}
+                  className="w-full"
                 />
               ) : (
                 <span className="truncate">{recipient.email}</span>
@@ -101,7 +106,7 @@ export function RecipientEmailCard({
                     onCcEmailsChange(emails);
                   }}
                   disabled={recipient.isSending || recipient.isRegenerating}
-                  className="h-8 text-sm"
+                  className="w-full h-8 text-sm"
                 />
                 {recipient.ccEmails && recipient.ccEmails.length > 0 ? (
                   <p className="text-xs text-muted-foreground">
@@ -160,6 +165,25 @@ export function RecipientEmailCard({
             disabled={recipient.isSending || recipient.isRegenerating}
           />
         </div>
+        <div className="space-y-2">
+          <AttachmentUpload
+            attachments={recipient.attachments ?? []}
+            onAttachmentsChange={onAttachmentsChange}
+            error={attachmentError}
+            onErrorChange={setAttachmentError}
+            disabled={recipient.isSending || recipient.isRegenerating}
+          />
+          {recipient.attachments && recipient.attachments.length > 0 ? (
+            <AttachmentList
+              attachments={recipient.attachments}
+              onRemove={(index) => {
+                const newAttachments = recipient.attachments?.filter((_, i) => i !== index) ?? [];
+                onAttachmentsChange(newAttachments);
+                setAttachmentError(undefined);
+              }}
+            />
+          ) : null}
+        </div>
         {error || recipient.errorMessage ? (
           <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
             <TriangleAlert className="h-4 w-4" />
@@ -169,7 +193,7 @@ export function RecipientEmailCard({
       </CardContent>
 
       <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
-        <DialogContent className="sm:max-w-[560px]">
+        <DialogContent className="sm:max-w-[560px] p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>Regenerate with prompt</DialogTitle>
             <DialogDescription>

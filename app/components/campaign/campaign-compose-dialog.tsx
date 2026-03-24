@@ -109,7 +109,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : null)}>
-        <DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto">
+        <DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto p-6">
           <DialogHeader>
             <DialogTitle>
               {campaign ? "Edit global message" : "Define campaign message"}
@@ -245,7 +245,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
       </Dialog>
 
       <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
-        <DialogContent className="sm:max-w-[560px]">
+        <DialogContent className="sm:max-w-[560px] p-6">
           <DialogHeader>
             <DialogTitle>Regenerate with prompt</DialogTitle>
             <DialogDescription>

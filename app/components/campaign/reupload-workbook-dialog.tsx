@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import type { SavedWorkbookRecord } from "@/types/campaign";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
@@ -63,45 +62,21 @@ export function ReuploadWorkbookDialog(props: ReuploadWorkbookDialogProps) {
     onRemoveSavedFiles,
   } = props;
 
-  const [filesToRemove, setFilesToRemove] = useState<Set<string>>(new Set());
-  const [isSaving, setIsSaving] = useState(false);
+  const handleRemoveFile = async (fileKey: string) => {
+    if (!onRemoveSavedFiles) return;
 
-  // Reset files to remove when dialog opens
-  useEffect(() => {
-    if (open) {
-      setFilesToRemove(new Set());
-    }
-  }, [open]);
+    const fileToRemove = savedWorkbook?.files.find(
+      (f) => `${f.fileName}-${f.lastModified}` === fileKey
+    );
 
-  const toggleFileRemove = (fileKey: string) => {
-    setFilesToRemove((prev) => {
-      const next = new Set(prev);
-      if (next.has(fileKey)) {
-        next.delete(fileKey);
-      } else {
-        next.add(fileKey);
-      }
-      return next;
-    });
-  };
+    if (!fileToRemove) return;
 
-  const handleSaveChanges = async () => {
-    if (filesToRemove.size === 0 || !onRemoveSavedFiles) {
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await onRemoveSavedFiles(Array.from(filesToRemove));
-      setFilesToRemove(new Set());
-    } finally {
-      setIsSaving(false);
-    }
+    await onRemoveSavedFiles([fileKey]);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px] p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Reupload workbook</DialogTitle>
           <DialogDescription>
@@ -122,14 +97,11 @@ export function ReuploadWorkbookDialog(props: ReuploadWorkbookDialogProps) {
             <div className="mt-3 max-h-[40vh] space-y-2 overflow-y-auto pr-1">
               {savedWorkbook.files.map((file) => {
                 const fileKey = `${file.fileName}-${file.lastModified}`;
-                const isRemoved = filesToRemove.has(fileKey);
 
                 return (
                   <div
                     key={fileKey}
-                    className={`flex items-center justify-between gap-2 rounded-xl border bg-white/80 px-3 py-2 transition-opacity ${
-                      isRemoved ? "opacity-50" : ""
-                    }`}
+                    className="flex items-center justify-between gap-2 rounded-xl border bg-white/80 px-3 py-2"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-foreground">{file.fileName}</p>
@@ -137,9 +109,9 @@ export function ReuploadWorkbookDialog(props: ReuploadWorkbookDialogProps) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => toggleFileRemove(fileKey)}
+                      onClick={() => handleRemoveFile(fileKey)}
                       className="flex-shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                      aria-label={isRemoved ? "Undo remove" : "Remove file"}
+                      aria-label="Remove file"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -159,11 +131,6 @@ export function ReuploadWorkbookDialog(props: ReuploadWorkbookDialogProps) {
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          {filesToRemove.size > 0 && onRemoveSavedFiles ? (
-            <Button onClick={handleSaveChanges} disabled={isSaving}>
-              {isSaving ? "Saving..." : `Save changes (${filesToRemove.size})`}
-            </Button>
-          ) : null}
           {canAddFiles ? (
             <Button variant="outline" onClick={onAddFiles}>
               Add new files
@@ -178,3 +145,4 @@ export function ReuploadWorkbookDialog(props: ReuploadWorkbookDialogProps) {
     </Dialog>
   );
 }
+

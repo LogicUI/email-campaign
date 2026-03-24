@@ -47,7 +47,7 @@ export function GoogleSheetsExportDialog(props: {
         onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="w-[min(94vw,34rem)]">
+      <DialogContent className="w-[min(94vw,34rem)] p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sheet className="h-5 w-5" />
