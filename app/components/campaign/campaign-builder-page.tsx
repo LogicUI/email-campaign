@@ -211,18 +211,8 @@ export function CampaignBuilderPage({
               />
             </>
           ) : (
-            <div className="grid gap-8 lg:grid-cols-[1.3fr_0.7fr]">
-              <FileUploadDropzone
-                isImporting={ui.isImporting}
-                error={error}
-                notice={notice}
-                onFilesSelect={onFilesSelect}
-                onImportFromDatabase={() => setDatabaseSourceDialogOpen(true)}
-                onImportFromGoogle={() => setGoogleImportDialogOpen(true)}
-                onRestoreSavedFile={hasSavedWorkbook ? restoreSavedWorkbook : undefined}
-                savedWorkbookLabel={savedWorkbookLabel}
-              />
-              <div className="rounded-[2rem] border bg-white/70 p-8">
+            <div className="grid gap-8">
+              <div className="mx-auto max-w-2xl rounded-[2rem] border bg-white/70 p-8">
                 <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
                   Workflow
                 </p>
@@ -235,6 +225,16 @@ export function CampaignBuilderPage({
                   <li>6. The latest uploaded workbook is saved locally for quick reuse.</li>
                 </ol>
               </div>
+              <FileUploadDropzone
+                isImporting={ui.isImporting}
+                error={error}
+                notice={notice}
+                onFilesSelect={onFilesSelect}
+                onImportFromDatabase={() => setDatabaseSourceDialogOpen(true)}
+                onImportFromGoogle={() => setGoogleImportDialogOpen(true)}
+                onRestoreSavedFile={hasSavedWorkbook ? restoreSavedWorkbook : undefined}
+                savedWorkbookLabel={savedWorkbookLabel}
+              />
             </div>
           )}
         </div>

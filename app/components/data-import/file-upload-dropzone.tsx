@@ -1,10 +1,9 @@
 "use client";
 
-import { Database, FileSpreadsheet, Sheet, Upload } from "lucide-react";
+import { Database, Sheet, Upload } from "lucide-react";
 
-import { AiSettingsTrigger } from "@/components/settings/ai-settings-trigger";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import type { FileUploadDropzoneProps } from "@/types/file-upload-dropzone";
 
 export function FileUploadDropzone(props: FileUploadDropzoneProps) {
@@ -21,39 +20,13 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
 
   return (
     <Card className="border-dashed bg-white/85">
-      <CardHeader className="gap-3">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary">
-          <FileSpreadsheet className="h-7 w-7 text-primary" />
-        </div>
-        <h1 className="text-3xl font-semibold leading-none tracking-tight">Upload your lead file</h1>
-        <CardDescription className="max-w-2xl text-base">
-          Import one or more CSV or Excel files, map the email column, define one global
-          template, then edit and send individual drafts from the same session.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/50 px-6 py-12 text-center">
-          <Upload className="mb-4 h-8 w-8 text-muted-foreground" />
-          <span className="text-base font-medium">Choose CSV or Excel files</span>
-          <span className="mt-2 text-sm text-muted-foreground">
-            Supports `.csv`, `.xlsx`, `.xls`
-          </span>
-          <input
-            className="sr-only"
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            multiple
-            onChange={(event) => {
-              void onFilesSelect(event.target.files);
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
+      <CardContent className="space-y-4 p-8">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Button
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <button
             type="button"
-            variant="secondary"
+            className="group flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-white/70 p-6 text-left transition-all hover:border-primary/40 hover:bg-white/90 hover:shadow-md disabled:opacity-50 disabled:hover:border-border/60 disabled:hover:bg-white/70 disabled:hover:shadow-none"
             disabled={isImporting}
             onClick={() => {
               const input = document.createElement("input");
@@ -67,30 +40,48 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
               input.click();
             }}
           >
-            {isImporting ? "Parsing files..." : "Select files"}
-          </Button>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/50">
+              <Upload className="h-6 w-6 text-primary" />
+            </div>
+            <div className="space-y-1 text-center">
+              <p className="font-medium">Upload CSV files</p>
+            </div>
+          </button>
+
           {onImportFromGoogle ? (
-            <Button
+            <button
               type="button"
-              variant="outline"
+              className="group flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-white/70 p-6 text-left transition-all hover:border-primary/40 hover:bg-white/90 hover:shadow-md disabled:opacity-50 disabled:hover:border-border/60 disabled:hover:bg-white/70 disabled:hover:shadow-none"
               disabled={isImporting}
               onClick={onImportFromGoogle}
             >
-              <Sheet className="h-4 w-4" />
-              Google Sheets
-            </Button>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/50">
+                <Sheet className="h-6 w-6 text-primary" />
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="font-medium">Google Sheets</p>
+              </div>
+            </button>
           ) : null}
+
           {onImportFromDatabase ? (
-            <Button
+            <button
               type="button"
-              variant="outline"
+              className="group flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-white/70 p-6 text-left transition-all hover:border-primary/40 hover:bg-white/90 hover:shadow-md disabled:opacity-50 disabled:hover:border-border/60 disabled:hover:bg-white/70 disabled:hover:shadow-none"
               disabled={isImporting}
               onClick={onImportFromDatabase}
             >
-              <Database className="h-4 w-4" />
-              Database
-            </Button>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/50">
+                <Database className="h-6 w-6 text-primary" />
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="font-medium">Database</p>
+              </div>
+            </button>
           ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
           {savedWorkbookLabel ? (
             <Button
               type="button"
@@ -101,16 +92,16 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
               Use saved file
             </Button>
           ) : null}
-          <span>
+          <span className={savedWorkbookLabel ? "" : "w-full text-center"}>
             The last uploaded workbook is saved locally in this browser for reuse.
           </span>
         </div>
+
         {savedWorkbookLabel ? (
           <p className="text-sm text-muted-foreground">
             Saved workbook set: <span className="font-medium text-foreground">{savedWorkbookLabel}</span>
           </p>
         ) : null}
-        <AiSettingsTrigger context="upload" />
         {notice ? <p className="text-sm text-amber-700">{notice}</p> : null}
       </CardContent>
     </Card>

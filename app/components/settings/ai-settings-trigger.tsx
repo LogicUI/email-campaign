@@ -25,6 +25,8 @@ export function AiSettingsStatusPill() {
   );
 }
 
+// Temporarily unused - removed from file upload page
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function AiSettingsTrigger(props: AiSettingsTriggerProps) {
   const { context } = props;
   const [open, setOpen] = useState(false);
