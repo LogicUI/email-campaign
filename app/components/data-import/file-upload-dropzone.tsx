@@ -29,15 +29,8 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
             className="group flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-white/70 p-6 text-left transition-all hover:border-primary/40 hover:bg-white/90 hover:shadow-md disabled:opacity-50 disabled:hover:border-border/60 disabled:hover:bg-white/70 disabled:hover:shadow-none"
             disabled={isImporting}
             onClick={() => {
-              const input = document.createElement("input");
-              input.type = "file";
-              input.accept = ".csv,.xlsx,.xls";
-              input.multiple = true;
-              input.onchange = () => {
-                void onFilesSelect(input.files);
-                input.value = "";
-              };
-              input.click();
+              const input = document.getElementById("file-upload-input") as HTMLInputElement;
+              input?.click();
             }}
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/50">
@@ -80,6 +73,20 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
             </button>
           ) : null}
         </div>
+
+        <input
+          id="file-upload-input"
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          multiple
+          aria-label="Choose CSV or Excel file"
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(e) => {
+            void onFilesSelect(e.target.files);
+            e.target.value = "";
+          }}
+        />
 
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
           {savedWorkbookLabel ? (
