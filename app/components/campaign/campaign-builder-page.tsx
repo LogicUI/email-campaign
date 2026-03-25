@@ -8,7 +8,9 @@ import { useCampaignBuilder } from "@/hooks/use-campaign-builder";
 import { useExcelImport } from "@/hooks/use-excel-import";
 import { useRecipientPagination } from "@/hooks/use-recipient-pagination";
 import { useCampaignStore } from "@/store/campaign-store";
-import { selectRecipientOrder, selectUi } from "@/store/selectors";
+import { selectRecipientOrder, selectRecipientsById, selectUi } from "@/store/selectors";
+import { useSaveDatabaseImportMutation } from "@/tanStack/database";
+import type { CampaignRecipient, ImportPreview } from "@/types/campaign";
 import { CampaignActionBar } from "@/components/campaign/campaign-action-bar";
 import { CampaignHeaderBar } from "@/components/campaign/campaign-header-bar";
 import { SendSummaryBar } from "@/components/campaign/send-summary-bar";
@@ -69,8 +71,10 @@ export function CampaignBuilderPage({
   const activeConnection = useDatabaseSessionStore((state) => state.activeConnection);
   const ui = useCampaignStore(selectUi);
   const recipientOrder = useCampaignStore(selectRecipientOrder);
+  const recipientsById = useCampaignStore(selectRecipientsById);
   const setImportPreview = useCampaignStore((state) => state.setImportPreview);
   const toggleRecipientsChecked = useCampaignStore((state) => state.toggleRecipientsChecked);
+  const saveImportMutation = useSaveDatabaseImportMutation();
   const {
     canStartCampaign,
     campaign,
@@ -137,6 +141,119 @@ export function CampaignBuilderPage({
       : `${savedWorkbook.files[0].fileName} + ${savedWorkbook.files.length - 1} more`
     : undefined;
 
+  const hasUnsavedImport = Boolean(
+    campaign &&
+    !campaign.savedListId
+  );
+
+  const buildImportPreviewFromCampaign = (
+    campaignData: typeof campaign,
+    recipientsList: CampaignRecipient[],
+  ): ImportPreview => {
+    if (!campaignData) {
+      throw new Error("Campaign data is required");
+    }
+
+    // Extract headers from first recipient's fields
+    const firstRecipient = recipientsList[0];
+    const headers = firstRecipient?.fields ? Object.keys(firstRecipient.fields) : [];
+
+    // Build unique source files list
+    const sourceFilesMap = new Map<string, { fileName: string; sheetName?: string }>();
+    recipientsList.forEach((recipient) => {
+      if (recipient.sourceFileName && !sourceFilesMap.has(recipient.sourceFileName)) {
+        sourceFilesMap.set(recipient.sourceFileName, {
+          fileName: recipient.sourceFileName,
+          sheetName: recipient.sourceSheetName,
+        });
+      }
+    });
+
+    // Reconstruct source rows
+    const sourceRows = recipientsList.map((recipient) => ({
+      raw: recipient.fields,
+      sourceFileName: recipient.sourceFileName || campaignData.importedFileName,
+      originalRowIndex: recipient.rowIndex,
+    }));
+
+    // Build preview rows
+    const rows = recipientsList.map((recipient) => ({
+      tempId: recipient.id,
+      rowIndex: recipient.rowIndex,
+      email: recipient.email,
+      recipient: recipient.recipient || recipient.email,
+      sourceFileName: recipient.sourceFileName || campaignData.importedFileName,
+      sourceSheetName: recipient.sourceSheetName,
+      isValid: true,
+      invalidReason: undefined,
+      fields: recipient.fields,
+      raw: recipient.fields,
+    }));
+
+    return {
+      fileName: campaignData.importedFileName,
+      sheetName: campaignData.importedSheetName,
+      sourceFiles: Array.from(sourceFilesMap.values()),
+      sourceRows,
+      headers,
+      rows,
+      validCount: campaignData.validRows,
+      invalidCount: campaignData.invalidRows,
+      candidateEmailColumns: campaignData.detectedEmailColumn ? [campaignData.detectedEmailColumn] : [],
+      candidateRecipientColumns: campaignData.detectedRecipientColumn ? [campaignData.detectedRecipientColumn] : [],
+      selectedEmailColumn: campaignData.detectedEmailColumn,
+      selectedRecipientColumn: campaignData.detectedRecipientColumn,
+    };
+  };
+
+  const handleSaveToDatabase = async () => {
+    // Check if database is connected
+    if (!activeConnection) {
+      setDatabaseImportDialogOpen(true);
+      return;
+    }
+
+    if (!campaign) return;
+
+    // Get all recipients
+    const recipients = recipientOrder.map((id) => recipientsById[id]).filter(Boolean);
+
+    try {
+      // Reconstruct import preview from campaign data
+      const preview = buildImportPreviewFromCampaign(campaign, recipients);
+
+      // Create save payload
+      const payload = {
+        connection: activeConnection,
+        saveName: `${campaign.name} list`,
+        preview,
+        mode: "app_only" as const,
+        mappings: [],
+      };
+
+      // Execute save
+      const response = await saveImportMutation.mutateAsync(payload);
+
+      // Update campaign with savedListId
+      const currentCampaign = useCampaignStore.getState().campaign;
+      if (currentCampaign) {
+        useCampaignStore.setState({
+          campaign: {
+            ...currentCampaign,
+            savedListId: response.savedList.id,
+            databaseConnectionLabel: activeConnection.label,
+            databaseTableName: response.destinationTableName,
+          },
+        });
+      }
+
+      // Refresh saved data
+      await onSavedDataChange?.();
+    } catch (error) {
+      console.error("Failed to save campaign to database:", error);
+    }
+  };
+
   return (
     <section className="app-shell" aria-label="Campaign workspace">
       <div className="container py-6 md:py-10">
@@ -165,6 +282,8 @@ export function CampaignBuilderPage({
                 onAddRecipient={addManualRecipient}
                 onClearAllSelected={() => toggleRecipientsChecked(recipientOrder, false)}
                 onSendSelected={bulkSend.sendSelected}
+                hasUnsavedImport={hasUnsavedImport}
+                onSaveToDatabase={handleSaveToDatabase}
               />
               <RecipientStatusTabs
                 value={recipientStatusView}
@@ -299,7 +418,6 @@ export function CampaignBuilderPage({
         onEmailColumnChange={confirmEmailColumn}
         onRecipientColumnChange={confirmRecipientColumn}
         isImporting={ui.isImporting}
-        onSaveToDatabase={() => setDatabaseImportDialogOpen(true)}
         onContinue={() => {
           if (canStartCampaign) {
             openComposeDialog();

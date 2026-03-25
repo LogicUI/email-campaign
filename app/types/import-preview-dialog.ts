@@ -9,6 +9,5 @@ export interface ImportPreviewDialogProps {
   onEmailColumnChange: (column: string) => void;
   onRecipientColumnChange: (column: string) => void;
   isImporting?: boolean;
-  onSaveToDatabase: () => void;
   onContinue: () => void;
 }

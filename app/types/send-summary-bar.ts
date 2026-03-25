@@ -9,4 +9,6 @@ export interface SendSummaryBarProps {
   onAddRecipient: () => void;
   onClearAllSelected: () => void;
   onSendSelected: () => void;
+  hasUnsavedImport: boolean;
+  onSaveToDatabase?: () => void;
 }

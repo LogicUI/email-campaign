@@ -1,4 +1,4 @@
-import { AlertCircle, LoaderCircle, Plus, Send, X } from "lucide-react";
+import { AlertCircle, Database, LoaderCircle, Plus, Send, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
     onClearAllSelected,
     onSendSelected,
     progress,
+    hasUnsavedImport,
+    onSaveToDatabase,
   } = props;
 
   const progressValue = progress.total
@@ -45,6 +47,12 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
             <Plus className="h-4 w-4" />
             New recipient
           </Button>
+          {hasUnsavedImport && onSaveToDatabase ? (
+            <Button variant="outline" onClick={onSaveToDatabase}>
+              <Database className="h-4 w-4" />
+              Save to database
+            </Button>
+          ) : null}
           <Button onClick={onSendSelected} disabled={checkedCount === 0 || isSending}>
             <Send className="h-4 w-4" />
             {isSending ? "Sending..." : "Send selected"}

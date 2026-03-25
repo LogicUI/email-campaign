@@ -30,7 +30,6 @@ export function ImportPreviewDialog(props: ImportPreviewDialogProps) {
     onEmailColumnChange,
     onRecipientColumnChange,
     isImporting = false,
-    onSaveToDatabase,
     onContinue,
   } = props;
   const addFilesInputRef = useRef<HTMLInputElement | null>(null);
@@ -200,13 +199,6 @@ export function ImportPreviewDialog(props: ImportPreviewDialogProps) {
             className="w-full sm:w-auto text-xs sm:text-sm"
           >
             {isImporting ? "Parsing files..." : "Add more files"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={onSaveToDatabase}
-            className="w-full sm:w-auto text-xs sm:text-sm"
-          >
-            Save to database
           </Button>
           <Button
             onClick={onContinue}

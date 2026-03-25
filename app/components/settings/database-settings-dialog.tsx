@@ -384,7 +384,7 @@ export function DatabaseSettingsDialog(props: {
       onOpenChange(isOpen);
     }}>
       {isImportFlow ? (
-        <DialogContent className="flex max-h-[92vh] w-[min(96vw,1180px)] flex-col overflow-hidden border-0">
+        <DialogContent className="flex max-h-[92vh] w-[min(96vw,1180px)] flex-col overflow-y-auto border-0 p-6">
           <DialogHeader>
             <DialogTitle className="text-2xl tracking-tight">Connect & Save Import</DialogTitle>
             <DialogDescription className="max-w-3xl">
@@ -520,32 +520,8 @@ export function DatabaseSettingsDialog(props: {
               </div>
             </div>
 
-            <ScrollArea className="h-[70vh] rounded-2xl border bg-background p-4">
+            <ScrollArea className="max-h-[60vh] rounded-2xl border bg-background p-4">
               <div className="space-y-5">
-                <section className="space-y-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">Uploaded spreadsheet preview</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Review the current upload while you connect a destination database.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">{importPreview!.validCount} valid</Badge>
-                      <Badge variant={importPreview!.invalidCount > 0 ? "warning" : "outline"}>
-                        {importPreview!.invalidCount} invalid
-                      </Badge>
-                      <Badge variant="outline">
-                        {importPreview!.sourceFiles.length} file
-                        {importPreview!.sourceFiles.length === 1 ? "" : "s"}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border bg-background">
-                    <ImportPreviewTable preview={importPreview!} maxRows={8} />
-                  </div>
-                </section>
-
                 <section className="space-y-4 rounded-2xl border bg-muted/25 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -669,6 +645,30 @@ export function DatabaseSettingsDialog(props: {
                     >
                       Disconnect
                     </Button>
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Uploaded spreadsheet preview</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Review the current upload while you connect a destination database.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">{importPreview!.validCount} valid</Badge>
+                      <Badge variant={importPreview!.invalidCount > 0 ? "warning" : "outline"}>
+                        {importPreview!.invalidCount} invalid
+                      </Badge>
+                      <Badge variant="outline">
+                        {importPreview!.sourceFiles.length} file
+                        {importPreview!.sourceFiles.length === 1 ? "" : "s"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border bg-background">
+                    <ImportPreviewTable preview={importPreview!} maxRows={8} />
                   </div>
                 </section>
 
