@@ -80,13 +80,21 @@ export function useBulkSend(options?: {
 
     const payloadRecipients: SendPayloadRecipient[] = eligibleIds.map((id) => {
       const recipient = recipientsById[id];
+
+      // Merge recipient attachments with global attachments
+      // If recipient has no attachments, use global attachments
+      // This ensures attachments are always included during bulk send
+      const attachments = recipient.attachments && recipient.attachments.length > 0
+        ? recipient.attachments
+        : campaign?.globalAttachments;
+
       return {
         id: recipient.id,
         email: recipient.email,
         subject: recipient.subject,
         body: recipient.body,
         ccEmails: recipient.ccEmails,
-        attachments: recipient.attachments,
+        attachments,
       };
     });
 

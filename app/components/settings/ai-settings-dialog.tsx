@@ -76,7 +76,7 @@ export function AiSettingsDialog(props: AiSettingsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(96vw,960px)] gap-6 overflow-hidden border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,244,235,0.96))]">
+      <DialogContent className="w-[min(96vw,960px)] gap-6 overflow-hidden border-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,244,235,0.96))]">
         <div className="grid gap-0 lg:grid-cols-[320px_minmax(0,1fr)]">
           <div className="border-b bg-[radial-gradient(circle_at_top_left,rgba(217,163,78,0.22),transparent_42%),linear-gradient(180deg,rgba(64,42,18,0.98),rgba(42,27,12,0.96))] p-6 text-white lg:border-b-0 lg:border-r">
             <DialogHeader className="space-y-3">

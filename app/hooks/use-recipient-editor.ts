@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import { useCampaignStore } from "@/store/campaign-store";
 import { selectRecipientById } from "@/store/selectors";
+import type { CampaignRecipient } from "@/types/campaign";
 
 export function useRecipientEditor(recipientId: string) {
   const recipient = useCampaignStore(selectRecipientById(recipientId));
@@ -12,6 +13,7 @@ export function useRecipientEditor(recipientId: string) {
   const updateRecipientBody = useCampaignStore((state) => state.updateRecipientBody);
   const updateRecipientSubject = useCampaignStore((state) => state.updateRecipientSubject);
   const updateRecipientCcEmails = useCampaignStore((state) => state.updateRecipientCcEmails);
+  const updateRecipientAttachments = useCampaignStore((state) => state.updateRecipientAttachments);
   const toggleRecipientChecked = useCampaignStore((state) => state.toggleRecipientChecked);
 
   const callbacks = useMemo(
@@ -21,6 +23,7 @@ export function useRecipientEditor(recipientId: string) {
       onBodyChange: (body: string) => updateRecipientBody(recipientId, body),
       onSubjectChange: (subject: string) => updateRecipientSubject(recipientId, subject),
       onCcEmailsChange: (ccEmails: string[]) => updateRecipientCcEmails(recipientId, ccEmails),
+      onAttachmentsChange: (attachments: CampaignRecipient["attachments"]) => updateRecipientAttachments(recipientId, attachments),
       onCheckedChange: (checked: boolean) => toggleRecipientChecked(recipientId, checked),
     }),
     [
@@ -31,6 +34,7 @@ export function useRecipientEditor(recipientId: string) {
       updateRecipientCcEmails,
       updateRecipientEmail,
       updateRecipientSubject,
+      updateRecipientAttachments,
     ],
   );
 

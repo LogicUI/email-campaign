@@ -1,4 +1,4 @@
-import { AlertCircle, LoaderCircle, Plus, Send, Sheet, WandSparkles, X } from "lucide-react";
+import { AlertCircle, LoaderCircle, Plus, Send, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,14 +9,11 @@ import type { SendSummaryBarProps } from "@/types/send-summary-bar";
 export function SendSummaryBar(props: SendSummaryBarProps) {
   const {
     checkedCount,
-    canSaveResultsToGoogle,
     error,
     failedCount,
     isSending,
     onAddRecipient,
     onClearAllSelected,
-    onSaveResultsToGoogle,
-    onRetryFailed,
     onSendSelected,
     progress,
   } = props;
@@ -60,20 +57,6 @@ export function SendSummaryBar(props: SendSummaryBarProps) {
             <X className="h-4 w-4" />
             Clear all selected
           </Button>
-          <Button variant="outline" onClick={onRetryFailed} disabled={failedCount === 0}>
-            <WandSparkles className="h-4 w-4" />
-            Re-check failed
-          </Button>
-          {onSaveResultsToGoogle ? (
-            <Button
-              variant="outline"
-              onClick={onSaveResultsToGoogle}
-              disabled={!canSaveResultsToGoogle || isSending}
-            >
-              <Sheet className="h-4 w-4" />
-              Save results to Google Sheets
-            </Button>
-          ) : null}
         </div>
 
         <div className="space-y-2">

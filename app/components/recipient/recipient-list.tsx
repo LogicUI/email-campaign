@@ -15,7 +15,7 @@ export function RecipientList({
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-2">
+    <div className="grid gap-5 grid-cols-1">
       {recipientIds.map((recipientId) => (
         <RecipientEmailCard
           key={recipientId}

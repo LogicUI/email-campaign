@@ -8,7 +8,7 @@ import { useCampaignBuilder } from "@/hooks/use-campaign-builder";
 import { useExcelImport } from "@/hooks/use-excel-import";
 import { useRecipientPagination } from "@/hooks/use-recipient-pagination";
 import { useCampaignStore } from "@/store/campaign-store";
-import { selectRecipientOrder, selectRecipientsById, selectUi } from "@/store/selectors";
+import { selectRecipientOrder, selectUi } from "@/store/selectors";
 import { CampaignActionBar } from "@/components/campaign/campaign-action-bar";
 import { CampaignHeaderBar } from "@/components/campaign/campaign-header-bar";
 import { SendSummaryBar } from "@/components/campaign/send-summary-bar";
@@ -40,12 +40,6 @@ const GoogleDriveImportDialog = dynamic(
       (mod) => mod.GoogleDriveImportDialog,
     ),
 );
-const GoogleSheetsExportDialog = dynamic(
-  () =>
-    import("@/components/google/google-sheets-export-dialog").then(
-      (mod) => mod.GoogleSheetsExportDialog,
-    ),
-);
 const ImportPreviewDialog = dynamic(
   () =>
     import("@/components/data-import/import-preview-dialog").then(
@@ -72,11 +66,9 @@ export function CampaignBuilderPage({
   const [databaseImportDialogOpen, setDatabaseImportDialogOpen] = useState(false);
   const [databaseSourceDialogOpen, setDatabaseSourceDialogOpen] = useState(false);
   const [googleImportDialogOpen, setGoogleImportDialogOpen] = useState(false);
-  const [googleExportDialogOpen, setGoogleExportDialogOpen] = useState(false);
   const activeConnection = useDatabaseSessionStore((state) => state.activeConnection);
   const ui = useCampaignStore(selectUi);
   const recipientOrder = useCampaignStore(selectRecipientOrder);
-  const recipientsById = useCampaignStore(selectRecipientsById);
   const setImportPreview = useCampaignStore((state) => state.setImportPreview);
   const toggleRecipientsChecked = useCampaignStore((state) => state.toggleRecipientsChecked);
   const {
@@ -144,14 +136,6 @@ export function CampaignBuilderPage({
       ? savedWorkbook.files[0].fileName
       : `${savedWorkbook.files[0].fileName} + ${savedWorkbook.files.length - 1} more`
     : undefined;
-  const allRecipients = useMemo(
-    () => recipientOrder.map((id) => recipientsById[id]).filter(Boolean),
-    [recipientOrder, recipientsById],
-  );
-  const canSaveResultsToGoogle = Boolean(
-    campaign?.googleSpreadsheetId &&
-      allRecipients.some((recipient) => recipient.status === "sent" || recipient.status === "failed"),
-  );
 
   return (
     <section className="app-shell" aria-label="Campaign workspace">
@@ -173,7 +157,6 @@ export function CampaignBuilderPage({
                 senderEmail={senderEmail}
               />
               <SendSummaryBar
-                canSaveResultsToGoogle={canSaveResultsToGoogle}
                 checkedCount={bulkSend.checkedCount}
                 failedCount={bulkSend.failedCount}
                 isSending={bulkSend.isSending}
@@ -181,9 +164,7 @@ export function CampaignBuilderPage({
                 error={bulkSend.error}
                 onAddRecipient={addManualRecipient}
                 onClearAllSelected={() => toggleRecipientsChecked(recipientOrder, false)}
-                onSaveResultsToGoogle={() => setGoogleExportDialogOpen(true)}
                 onSendSelected={bulkSend.sendSelected}
-                onRetryFailed={bulkSend.retryFailed}
               />
               <RecipientStatusTabs
                 value={recipientStatusView}
@@ -380,11 +361,13 @@ export function CampaignBuilderPage({
         campaign={composeDefaults}
         preview={preview}
         onClose={closeComposeDialog}
-        onSubmit={({ applyMode, globalBodyTemplate, globalSubject, name }) => {
+        onSubmit={({ applyMode, globalBodyTemplate, globalSubject, globalCcEmails, globalAttachments, name }) => {
           if (campaign) {
             updateGlobalTemplate({
               globalBodyTemplate,
               globalSubject,
+              globalCcEmails,
+              globalAttachments,
               applyMode,
             });
             closeComposeDialog();
@@ -395,19 +378,11 @@ export function CampaignBuilderPage({
             name,
             globalBodyTemplate,
             globalSubject,
+            globalCcEmails,
+            globalAttachments,
           });
         }}
       />
-
-      {campaign ? (
-        <GoogleSheetsExportDialog
-          open={googleExportDialogOpen}
-          onOpenChange={setGoogleExportDialogOpen}
-          campaign={campaign}
-          recipients={allRecipients}
-          senderEmail={senderEmail}
-        />
-      ) : null}
     </section>
   );
 }

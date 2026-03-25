@@ -87,6 +87,7 @@ export interface CampaignStoreActions {
   updateRecipientBody: (id: string, body: string) => void;
   updateRecipientSubject: (id: string, subject: string) => void;
   updateRecipientCcEmails: (id: string, ccEmails: string[]) => void;
+  updateRecipientAttachments: (id: string, attachments: CampaignRecipient["attachments"]) => void;
   toggleRecipientChecked: (id: string, checked?: boolean) => void;
   toggleRecipientsChecked: (ids: string[], checked: boolean) => void;
   setCurrentPage: (page: number) => void;

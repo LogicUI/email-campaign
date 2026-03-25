@@ -32,8 +32,9 @@ export function useImportGoogleSheetMutation() {
   });
 }
 
-export function useExportGoogleSheetResultsMutation() {
-  return useMutation({
-    mutationFn: exportGoogleSheetResults,
-  });
-}
+// Temporarily unused - removed Google Sheets export feature
+// export function useExportGoogleSheetResultsMutation() {
+//   return useMutation({
+//     mutationFn: exportGoogleSheetResults,
+//   });
+// }

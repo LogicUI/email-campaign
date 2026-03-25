@@ -12,6 +12,7 @@ import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/goog
 import { renderHtmlFromText } from "@/core/email/render-email";
 import { sendGmailMessage } from "@/core/integrations/gmail-client";
 import { getZodErrorMessage, testEmailRequestSchema } from "@/zodSchemas/api";
+import { logger } from "@/lib/logger";
 
 export const POST = withApiHandler(async (request: Request) => {
   const authResult = await requireApiSession();
@@ -28,6 +29,18 @@ export const POST = withApiHandler(async (request: Request) => {
   }
 
   const payload = parsedPayload.data;
+
+  // Log incoming test email request details
+  logger.info({
+    event: 'test_send_request',
+    toEmail: payload.to,
+    subject: payload.subject,
+    bodyLength: payload.body?.length,
+    ccEmails: payload.ccEmails,
+    hasAttachments: !!payload.attachments?.length,
+    attachmentCount: payload.attachments?.length,
+  }, 'Test email request received');
+
   const req = request as unknown as NextRequest;
   const authToken = await getAuthToken(req);
 
@@ -41,15 +54,32 @@ export const POST = withApiHandler(async (request: Request) => {
     throw error;
   }
 
-  const response = await sendGmailMessage({
-    accessToken,
-    bodyHtml: renderHtmlFromText(payload.body),
-    bodyText: payload.body,
-    ccEmails: payload.ccEmails,
-    fromEmail: authResult.session.user.email,
-    subject: payload.subject,
+  let response;
+  try {
+    response = await sendGmailMessage({
+      accessToken,
+      attachments: payload.attachments,
+      bodyHtml: renderHtmlFromText(payload.body),
+      bodyText: payload.body,
+      ccEmails: payload.ccEmails,
+      fromEmail: authResult.session.user.email,
+      subject: payload.subject,
+      toEmail: payload.to,
+    });
+  } catch (error) {
+    console.error('Gmail send failed:', error);
+    throw error;
+  }
+
+  logger.info({
+    event: 'test_email_sent',
     toEmail: payload.to,
-  });
+    subject: payload.subject,
+    bodyLength: payload.body?.length,
+    hasAttachments: !!payload.attachments?.length,
+    attachmentCount: payload.attachments?.length,
+    providerMessageId: response.id,
+  }, 'Test email sent successfully');
 
   return successResponse({
     providerMessageId: response.id,

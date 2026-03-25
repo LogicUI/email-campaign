@@ -246,26 +246,26 @@ export const useCampaignStore = create<CampaignStore>()(
 
             const recipientsById = Object.fromEntries(
               Object.entries(state.recipientsById).map(([id, recipient]) => {
-                const shouldApply =
+                const shouldApplyContent =
                   applyMode === "all" ||
                   (recipient.bodySource === "global-template" &&
                     recipient.manualEditsSinceGenerate === false);
 
-                if (!shouldApply) {
-                  return [id, recipient];
+                // Always update attachments - they are resources, not content
+                const updatedRecipient = {
+                  ...recipient,
+                  attachments: globalAttachments,
+                };
+
+                // Only update content (subject, body) if apply mode allows
+                if (shouldApplyContent) {
+                  updatedRecipient.subject = mergeTemplate(globalSubject, recipient.fields);
+                  updatedRecipient.body = mergeTemplate(globalBodyTemplate, recipient.fields);
+                  updatedRecipient.ccEmails = globalCcEmails;
+                  updatedRecipient.bodySource = "global-template" as const;
                 }
 
-                return [
-                  id,
-                  {
-                    ...recipient,
-                    subject: mergeTemplate(globalSubject, recipient.fields),
-                    body: mergeTemplate(globalBodyTemplate, recipient.fields),
-                    ccEmails: globalCcEmails,
-                    attachments: globalAttachments,
-                    bodySource: "global-template" as const,
-                  },
-                ];
+                return [id, updatedRecipient];
               }),
             );
 
@@ -456,6 +456,26 @@ export const useCampaignStore = create<CampaignStore>()(
           }),
           false,
           "campaign/updateRecipientCcEmails",
+        ),
+
+      updateRecipientAttachments: (id: string, attachments: CampaignRecipient["attachments"]) =>
+        set(
+          (state) => ({
+            recipientsById: {
+              ...state.recipientsById,
+              [id]: {
+                ...state.recipientsById[id],
+                attachments,
+              },
+            },
+            ui: {
+              ...state.ui,
+              needsDatabaseSync: true,
+              lastDatabaseSyncError: undefined,
+            },
+          }),
+          false,
+          "campaign/updateRecipientAttachments",
         ),
 
       toggleRecipientChecked: (id, checked) =>
@@ -870,9 +890,24 @@ export const useCampaignStore = create<CampaignStore>()(
       storage: createJSONStorage(() => localStorage),
       version: 1,
       partialize: (state) => ({
-        campaign: state.campaign,
+        campaign: state.campaign
+          ? {
+              ...state.campaign,
+              // Exclude globalAttachments to avoid localStorage quota issues
+              globalAttachments: undefined,
+            }
+          : undefined,
         importPreview: state.importPreview,
-        recipientsById: state.recipientsById,
+        // Exclude attachments from each recipient to avoid localStorage quota issues
+        recipientsById: Object.fromEntries(
+          Object.entries(state.recipientsById).map(([id, recipient]) => [
+            id,
+            {
+              ...recipient,
+              attachments: undefined,
+            },
+          ])
+        ),
         recipientOrder: state.recipientOrder,
         generationLogs: state.generationLogs,
         ui: {

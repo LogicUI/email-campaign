@@ -46,6 +46,9 @@ export function RecipientEmailCard({
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
   const [prompt, setPrompt] = useState(DEFAULT_REGENERATE_PROMPT);
   const [attachmentError, setAttachmentError] = useState<string | undefined>();
+  const [ccEmailsString, setCcEmailsString] = useState(() =>
+    recipient.ccEmails?.join(", ") ?? ""
+  );
 
   useEffect(() => {
     if (!regenerateDialogOpen) {
@@ -61,7 +64,7 @@ export function RecipientEmailCard({
     <Card className="h-full bg-white/90">
       <CardHeader className="gap-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
+          <div className="flex-1 min-w-0 space-y-1">
             <CardTitle className="text-lg">
               {recipient.source === "manual"
                 ? recipient.email || "New recipient"
@@ -97,9 +100,10 @@ export function RecipientEmailCard({
                   id={`cc-${recipient.id}`}
                   type="text"
                   placeholder="cc@example.com, another@example.com"
-                  value={recipient.ccEmails?.join(", ") || ""}
-                  onChange={(event) => {
-                    const emails = event.target.value
+                  value={ccEmailsString}
+                  onChange={(event) => setCcEmailsString(event.target.value)}
+                  onBlur={() => {
+                    const emails = ccEmailsString
                       .split(",")
                       .map((e) => e.trim())
                       .filter((e) => e.length > 0);
@@ -108,9 +112,18 @@ export function RecipientEmailCard({
                   disabled={recipient.isSending || recipient.isRegenerating}
                   className="w-full h-8 text-sm"
                 />
-                {recipient.ccEmails && recipient.ccEmails.length > 0 ? (
+                {ccEmailsString.split(",").map((e) => e.trim()).filter((e) => e.length > 0).length > 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    {recipient.ccEmails.length} CC recipient{recipient.ccEmails.length > 1 ? "s" : ""}
+                    {
+                      ccEmailsString
+                        .split(",")
+                        .map((e) => e.trim())
+                        .filter((e) => e.length > 0).length
+                    }{" "}
+                    CC recipient
+                    {ccEmailsString.split(",").map((e) => e.trim()).filter((e) => e.length > 0).length > 1
+                      ? "s"
+                      : ""}
                   </p>
                 ) : null}
               </div>
@@ -156,16 +169,6 @@ export function RecipientEmailCard({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor={`body-${recipient.id}`}>Body</Label>
-          <Textarea
-            id={`body-${recipient.id}`}
-            value={recipient.body}
-            onChange={(event) => onBodyChange(event.target.value)}
-            className="min-h-[240px]"
-            disabled={recipient.isSending || recipient.isRegenerating}
-          />
-        </div>
-        <div className="space-y-2">
           <AttachmentUpload
             attachments={recipient.attachments ?? []}
             onAttachmentsChange={onAttachmentsChange}
@@ -183,6 +186,16 @@ export function RecipientEmailCard({
               }}
             />
           ) : null}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`body-${recipient.id}`}>Body</Label>
+          <Textarea
+            id={`body-${recipient.id}`}
+            value={recipient.body}
+            onChange={(event) => onBodyChange(event.target.value)}
+            className="min-h-[240px]"
+            disabled={recipient.isSending || recipient.isRegenerating}
+          />
         </div>
         {error || recipient.errorMessage ? (
           <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">

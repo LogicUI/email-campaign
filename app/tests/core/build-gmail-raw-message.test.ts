@@ -49,8 +49,8 @@ describe("buildGmailRawMessage", () => {
     expect(decoded).toContain("Content-Type: application/pdf");
     expect(decoded).toContain('Content-Disposition: attachment; filename="test.pdf"');
     expect(decoded).toContain("Content-Transfer-Encoding: base64");
-    // Check that attachment data is present (encoded by encodeMimePart)
-    expect(decoded).toMatch(/ZEdWemRDQm1hV3hsSUdOdmJuUmxiblE9/);
+    // Attachment data should be present (not double-encoded)
+    expect(decoded).toContain("dGVzdCBmaWxlIGNvbnRlbnQ=");
   });
 
   it("builds a Gmail-compatible MIME message with multiple attachments", () => {
@@ -108,7 +108,7 @@ describe("buildGmailRawMessage", () => {
     const attachment: Attachment = {
       filename: "document.txt",
       contentType: "text/plain",
-      data: "SGVsbG8sIHRoaXMgaXMgYSB0ZXN0IGRvY3VtZW50IQ==", // Pre-base64 encoded
+      data: "SGVsbG8sIHRoaXMgaXMgYSB0ZXN0IGRvY3VtZW50IQ==", // Pre-base64 encoded "Hello, this is a test document!"
     };
 
     const raw = buildGmailRawMessage({
@@ -122,7 +122,7 @@ describe("buildGmailRawMessage", () => {
 
     const decoded = Buffer.from(raw, "base64url").toString("utf8");
 
-    // Check that attachment data is present and properly encoded
-    expect(decoded).toMatch(/U0dWc2JHOHNJSFJvYVhNZ2FYTWdZU0IwWlhOMElHUnZZM1Z0Wlc1MElRPT0=/);
+    // Check that attachment data is present (not double-encoded)
+    expect(decoded).toContain("SGVsbG8sIHRoaXMgaXMgYSB0ZXN0IGRvY3VtZW50IQ==");
   });
 });

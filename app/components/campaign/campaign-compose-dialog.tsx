@@ -79,7 +79,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
   const [name, setName] = useState(campaign?.name ?? defaults.name);
   const [subject, setSubject] = useState(campaign?.globalSubject ?? defaults.subject);
   const [body, setBody] = useState(campaign?.globalBodyTemplate ?? defaults.body);
-  const [ccEmails, setCcEmails] = useState<string[]>(campaign?.globalCcEmails ?? []);
+  const [ccEmailsString, setCcEmailsString] = useState(campaign?.globalCcEmails?.join(", ") ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>(campaign?.globalAttachments ?? []);
   const [attachmentError, setAttachmentError] = useState<string | undefined>();
   const [applyMode, setApplyMode] = useState<"untouched" | "all">("untouched");
@@ -90,7 +90,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
     setName(campaign?.name ?? defaults.name);
     setSubject(campaign?.globalSubject ?? defaults.subject);
     setBody(campaign?.globalBodyTemplate ?? defaults.body);
-    setCcEmails(campaign?.globalCcEmails ?? []);
+    setCcEmailsString(campaign?.globalCcEmails?.join(", ") ?? "");
     setAttachments(campaign?.globalAttachments ?? []);
     setAttachmentError(undefined);
   }, [campaign, defaults.body, defaults.name, defaults.subject, open]);
@@ -109,7 +109,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : null)}>
-        <DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto p-6">
+        <DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto p-6 border-0">
           <DialogHeader>
             <DialogTitle>
               {campaign ? "Edit global message" : "Define campaign message"}
@@ -148,14 +148,8 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
                 id="global-cc"
                 type="text"
                 placeholder="cc@example.com, another@example.com"
-                value={ccEmails.join(", ")}
-                onChange={(event) => {
-                  const emails = event.target.value
-                    .split(",")
-                    .map((e) => e.trim())
-                    .filter((e) => e.length > 0);
-                  setCcEmails(emails);
-                }}
+                value={ccEmailsString}
+                onChange={(event) => setCcEmailsString(event.target.value)}
               />
               <p className="text-xs text-muted-foreground">
                 Separate multiple email addresses with commas
@@ -231,7 +225,10 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
                   name,
                   globalSubject: subject,
                   globalBodyTemplate: body,
-                  globalCcEmails: ccEmails,
+                  globalCcEmails: ccEmailsString
+                    .split(",")
+                    .map((e) => e.trim())
+                    .filter((e) => e.length > 0),
                   globalAttachments: attachments,
                   applyMode,
                 })

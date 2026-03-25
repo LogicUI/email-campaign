@@ -384,7 +384,7 @@ export function DatabaseSettingsDialog(props: {
       onOpenChange(isOpen);
     }}>
       {isImportFlow ? (
-        <DialogContent className="flex max-h-[92vh] w-[min(96vw,1180px)] flex-col overflow-hidden">
+        <DialogContent className="flex max-h-[92vh] w-[min(96vw,1180px)] flex-col overflow-hidden border-0">
           <DialogHeader>
             <DialogTitle className="text-2xl tracking-tight">Connect & Save Import</DialogTitle>
             <DialogDescription className="max-w-3xl">
@@ -950,7 +950,7 @@ export function DatabaseSettingsDialog(props: {
           </DialogFooter>
         </DialogContent>
       ) : (
-        <DialogContent className="flex max-h-[min(92vh,960px)] w-[min(96vw,1080px)] flex-col gap-0 overflow-hidden lg:max-h-[90vh]">
+        <DialogContent className="flex max-h-[min(92vh,960px)] w-[min(96vw,1080px)] flex-col gap-0 overflow-hidden border-0 lg:max-h-[90vh]">
           <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[320px_minmax(0,1fr)]">
             <div className="overflow-y-auto border-b p-6 lg:border-b-0 lg:border-r bg-[linear-gradient(180deg,rgba(31,41,55,0.98),rgba(17,24,39,0.98))] text-white">
                 <DialogHeader className="space-y-3">

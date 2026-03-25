@@ -42,6 +42,19 @@ function encodeMimePart(value: string) {
 }
 
 /**
+ * Wraps pre-base64-encoded data for MIME.
+ *
+ * This is used for attachment data that is already base64-encoded.
+ * We only add line wrapping without re-encoding.
+ *
+ * @param base64Data Pre-base64-encoded data (e.g., from file uploads).
+ * @returns Base64 text wrapped to MIME-friendly line lengths.
+ */
+function wrapBase64Data(base64Data: string) {
+  return base64Data.replace(/.{1,76}/g, "$&\r\n").trimEnd();
+}
+
+/**
  * Builds the raw RFC 2822 message payload Gmail expects for the send API.
  *
  * This centralizes MIME construction so send routes can consistently generate both
@@ -58,19 +71,23 @@ export function buildGmailRawMessage(params: BuildGmailRawMessageParams) {
   const outerBoundary = `emailai_outer_${randomUUID().replaceAll("-", "")}`;
   const innerBoundary = `emailai_inner_${randomUUID().replaceAll("-", "")}`;
 
-  const ccHeader =
-    params.ccEmails && params.ccEmails.length > 0
-      ? `Cc: ${sanitizeHeaderValue(params.ccEmails.join(", "))}`
-      : "";
-
+  // Build headers array - only add CC header if there are CC recipients
+  // This prevents an empty string from creating an extra blank line in the headers
   const headers = [
     `From: ${sanitizeHeaderValue(params.fromEmail)}`,
     `Reply-To: ${sanitizeHeaderValue(params.fromEmail)}`,
     `To: ${sanitizeHeaderValue(params.toEmail)}`,
-    ccHeader,
-    `Subject: ${encodeHeaderValue(params.subject)}`,
-    "MIME-Version: 1.0",
   ];
+
+  // Only add CC header if there are actual CC recipients
+  if (params.ccEmails && params.ccEmails.length > 0) {
+    headers.push(`Cc: ${sanitizeHeaderValue(params.ccEmails.join(", "))}`);
+  }
+
+  headers.push(
+    `Subject: ${encodeHeaderValue(params.subject)}`,
+    "MIME-Version: 1.0"
+  );
 
   const messageParts: string[] = [];
 
@@ -108,7 +125,7 @@ export function buildGmailRawMessage(params: BuildGmailRawMessageParams) {
         "Content-Transfer-Encoding: base64",
         `Content-Disposition: attachment; filename="${sanitizeHeaderValue(attachment.filename)}"`,
         "",
-        encodeMimePart(attachment.data),
+        wrapBase64Data(attachment.data),
         ""
       );
     }
@@ -138,8 +155,15 @@ export function buildGmailRawMessage(params: BuildGmailRawMessageParams) {
   }
 
   const message = [...headers, ...messageParts]
-    .filter((line) => line !== "")
     .join("\r\n");
 
-  return Buffer.from(message, "utf8").toString("base64url");
+  const encoded = Buffer.from(message, "utf8").toString("base64url");
+
+  // DEBUG: Log first 500 chars of the encoded message
+  console.log('=== Gmail Raw Message (first 500 chars) ===');
+  console.log(encoded.substring(0, 500));
+  console.log('=== Original MIME (first 500 chars) ===');
+  console.log(message.substring(0, 500));
+
+  return encoded;
 }
