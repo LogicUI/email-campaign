@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BrainCircuit, KeyRound, Sparkles } from "lucide-react";
+import { BrainCircuit, KeyRound } from "lucide-react";
 
-import {
-  AI_PROVIDER_CATALOG,
-  LLM_PROVIDERS,
-  resolveProviderConfig,
-} from "@/core/ai/provider-defaults";
+import { AI_PROVIDER_CATALOG, LLM_PROVIDERS } from "@/core/ai/provider-defaults";
 import { useAiSettings } from "@/hooks/use-ai-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,8 +55,6 @@ export function AiSettingsDialog(props: AiSettingsDialogProps) {
 
   const selectedMeta = AI_PROVIDER_CATALOG[selectedProvider];
   const selectedDraft = draftProviders[selectedProvider];
-  const selectedResolvedModel = resolveProviderConfig(selectedProvider, selectedDraft).model;
-  const activeDraftConfigured = Boolean(draftProviders[draftActiveProvider].apiKey.trim());
 
   const configuredCountLabel = useMemo(() => {
     if (configuredProviders.length === 0) {
@@ -140,7 +134,7 @@ export function AiSettingsDialog(props: AiSettingsDialogProps) {
                     {meta.label}
                     {isConfigured ? (
                       <span className="rounded-full bg-black/10 px-2 py-0.5 text-[11px]">
-                        Ready
+                        Configured
                       </span>
                     ) : null}
                   </Button>
@@ -149,28 +143,11 @@ export function AiSettingsDialog(props: AiSettingsDialogProps) {
             </div>
 
             <div className="mt-6 rounded-[1.6rem] border border-border/70 bg-white/82 p-5 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-xl font-semibold tracking-tight">{selectedMeta.label}</h3>
-                    {draftActiveProvider === selectedProvider ? (
-                      <Badge variant="secondary">Active provider</Badge>
-                    ) : null}
-                  </div>
-                  <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-                    {selectedMeta.description}
-                  </p>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={!selectedDraft.apiKey.trim()}
-                  onClick={() => setDraftActiveProvider(selectedProvider)}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Use for AI actions
-                </Button>
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold tracking-tight">{selectedMeta.label}</h3>
+                <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+                  {selectedMeta.description}
+                </p>
               </div>
 
               <div className="mt-6 grid gap-5">
@@ -199,104 +176,29 @@ export function AiSettingsDialog(props: AiSettingsDialogProps) {
                   <p className="text-xs text-muted-foreground">
                     Leave blank to disable {selectedMeta.label} in this browser.
                   </p>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor={`${selectedProvider}-custom-model`}>
-                    Custom model override
-                  </Label>
-                  <Input
-                    id={`${selectedProvider}-custom-model`}
-                    value={selectedDraft.customModel}
-                    onChange={(event) =>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!providers[selectedProvider].apiKey}
+                    onClick={() => {
+                      clearProviderSettings(selectedProvider);
                       setDraftProviders((current) => ({
                         ...current,
                         [selectedProvider]: {
-                          ...current[selectedProvider],
-                          customModel: event.target.value,
+                          apiKey: "",
+                          customModel: "",
                         },
-                      }))
-                    }
-                    placeholder={selectedMeta.defaultModel}
-                  />
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>Default: {selectedMeta.defaultModel}</span>
-                    <span>&bull;</span>
-                    <span>Resolved model: {selectedResolvedModel}</span>
-                  </div>
+                      }));
+                    }}
+                  >
+                    Remove saved key
+                  </Button>
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {LLM_PROVIDERS.map((provider) => {
-                const meta = AI_PROVIDER_CATALOG[provider];
-                const providerState = draftProviders[provider];
-                const isConfigured = Boolean(providerState.apiKey.trim());
-
-                return (
-                  <div
-                    key={provider}
-                    className="rounded-2xl border border-border/70 bg-white/72 p-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{meta.label}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {isConfigured ? "Configured locally" : "No key saved"}
-                        </p>
-                      </div>
-                      {draftActiveProvider === provider ? (
-                        <Badge variant="success">Active</Badge>
-                      ) : null}
-                    </div>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      Model: {resolveProviderConfig(provider, providerState).model}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
             <DialogFooter className="mt-6">
-              <div className="mr-auto text-sm text-muted-foreground">
-                {activeDraftConfigured
-                  ? `${AI_PROVIDER_CATALOG[draftActiveProvider].label} will be used for regenerate.`
-                  : "Save at least one API key to enable regenerate actions."}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!selectedDraft.apiKey && !selectedDraft.customModel}
-                onClick={() =>
-                  setDraftProviders((current) => ({
-                    ...current,
-                    [selectedProvider]: {
-                      apiKey: "",
-                      customModel: "",
-                    },
-                  }))
-                }
-              >
-                Clear current form
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!providers[selectedProvider].apiKey && !providers[selectedProvider].customModel}
-                onClick={() => {
-                  clearProviderSettings(selectedProvider);
-                  setDraftProviders((current) => ({
-                    ...current,
-                    [selectedProvider]: {
-                      apiKey: "",
-                      customModel: "",
-                    },
-                  }));
-                }}
-              >
-                Remove saved key
-              </Button>
               <Button
                 type="button"
                 onClick={() => {

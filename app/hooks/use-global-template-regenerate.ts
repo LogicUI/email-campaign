@@ -3,10 +3,7 @@
 import { useCallback, useState } from "react";
 
 import { useAiSettings } from "@/hooks/use-ai-settings";
-import type {
-  GlobalTemplateRegenerateRequest,
-  GlobalTemplateRegenerateResponse,
-} from "@/types/api";
+import type { GlobalTemplateRegenerateRequest } from "@/types/api";
 
 export function useGlobalTemplateRegenerate() {
   const { resolvedActiveProvider } = useAiSettings();
@@ -16,6 +13,7 @@ export function useGlobalTemplateRegenerate() {
   const regenerate = useCallback(
     async (
       payload: Omit<GlobalTemplateRegenerateRequest, "provider" | "apiKey" | "model">,
+      onStreamDelta?: (chunk: string) => void,
     ) => {
       if (!resolvedActiveProvider.isConfigured) {
         setError("Configure an AI provider in AI Settings before regenerating drafts.");
@@ -39,13 +37,51 @@ export function useGlobalTemplateRegenerate() {
           } satisfies GlobalTemplateRegenerateRequest),
         });
 
-        const data = (await response.json()) as GlobalTemplateRegenerateResponse;
-
-        if (!response.ok || !data.ok || !data.data) {
-          throw new Error(data.error ?? "AI regenerate failed.");
+        if (!response.ok) {
+          throw new Error("AI regenerate failed.");
         }
 
-        return data.data;
+        // Handle SSE streaming
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error("No response body.");
+        }
+
+        const decoder = new TextDecoder();
+        let finalBody = null;
+        let accumulatedBody = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === "body_delta") {
+                  accumulatedBody += data.chunk;
+                  onStreamDelta?.(accumulatedBody);
+                } else if (data.type === "done") {
+                  finalBody = data.data.body;
+                } else if (data.type === "error") {
+                  throw new Error(data.error);
+                }
+              } catch {
+                // Ignore non-JSON lines
+              }
+            }
+          }
+        }
+
+        if (!finalBody) {
+          throw new Error("No data received from AI.");
+        }
+
+        return finalBody;
       } catch (caughtError) {
         const message =
           caughtError instanceof Error ? caughtError.message : "AI regenerate failed.";

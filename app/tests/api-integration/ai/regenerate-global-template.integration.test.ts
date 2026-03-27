@@ -179,10 +179,18 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
+      const events = streamText
+        .split("\n\n")
+        .filter((line) => line.trim().length > 0)
+        .map((event) => {
+          const match = event.match(/data: (.+)/);
+          return match ? JSON.parse(match[1]) : null;
+        })
+        .filter((e) => e !== null);
 
       expect(response.status).toBe(200);
-      expect(json.ok).toBe(true);
+      expect(events[events.length - 1].type).toBe("done");
     });
 
     it("accepts request with detectedRecipientPlaceholder optional", async () => {
@@ -212,11 +220,10 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
     it("regenerates global template successfully", async () => {
       mockAuthenticatedUser({ email: "test@example.com" });
 
-      const regeneratedSubject = "Improved Subject Line";
       const regeneratedBody = "Hello {{name}}, this is an improved template.";
 
       mockDispatchRegenerate.mockResolvedValueOnce({
-        subject: regeneratedSubject,
+        subject: "Improved Subject Line",
         body: regeneratedBody,
         reasoning: "Made the template more engaging",
       });
@@ -233,19 +240,24 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
+      const events = streamText
+        .split("\n\n")
+        .filter((line) => line.trim().length > 0)
+        .map((event) => {
+          const match = event.match(/data: (.+)/);
+          return match ? JSON.parse(match[1]) : null;
+        })
+        .filter((e) => e !== null);
 
       expect(response.status).toBe(200);
-      expect(json.ok).toBe(true);
-      expect(json.data.subject).toBe(regeneratedSubject);
-      expect(json.data.body).toBe(regeneratedBody);
-      expect(json.data.reasoning).toBe("Made the template more engaging");
+      const finalEvent = events[events.length - 1];
+      expect(finalEvent.type).toBe("done");
+      expect(finalEvent.data.body).toBe(regeneratedBody);
     });
 
     it("uses original subject when AI does not return one", async () => {
       mockAuthenticatedUser({ email: "test@example.com" });
-
-      const originalSubject = "Original Subject";
 
       mockDispatchRegenerate.mockResolvedValueOnce({
         body: "Regenerated body only",
@@ -255,7 +267,7 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
         method: "POST",
         body: JSON.stringify(
           createGlobalTemplateRegenerateRequest({
-            globalSubject: originalSubject,
+            globalSubject: "Original Subject",
             globalBodyTemplate: "Original body",
             availablePlaceholders: ["name"],
           })
@@ -263,11 +275,20 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
+      const events = streamText
+        .split("\n\n")
+        .filter((line) => line.trim().length > 0)
+        .map((event) => {
+          const match = event.match(/data: (.+)/);
+          return match ? JSON.parse(match[1]) : null;
+        })
+        .filter((e) => e !== null);
 
       expect(response.status).toBe(200);
-      expect(json.data.subject).toBe(originalSubject);
-      expect(json.data.body).toBe("Regenerated body only");
+      const finalEvent = events[events.length - 1];
+      expect(finalEvent.type).toBe("done");
+      expect(finalEvent.data.body).toBe("Regenerated body only");
     });
 
     it("includes placeholders in the prompt", async () => {
@@ -460,11 +481,11 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
 
-      expect(response.status).toBe(500);
-      expect(json.ok).toBe(false);
-      expect(json.error).toContain("AI service unavailable");
+      expect(response.status).toBe(200);
+      expect(streamText).toContain("event: error");
+      expect(streamText).toContain("AI service unavailable");
     });
 
     it("handles API key errors", async () => {
@@ -478,10 +499,11 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
 
-      expect(response.status).toBe(500);
-      expect(json.error).toContain("Invalid API key");
+      expect(response.status).toBe(200);
+      expect(streamText).toContain("event: error");
+      expect(streamText).toContain("Invalid API key");
     });
 
     it("handles rate limiting errors", async () => {
@@ -495,10 +517,11 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
 
-      expect(response.status).toBe(500);
-      expect(json.error).toContain("Rate limit exceeded");
+      expect(response.status).toBe(200);
+      expect(streamText).toContain("event: error");
+      expect(streamText).toContain("Rate limit exceeded");
     });
 
     it("handles timeout errors", async () => {
@@ -512,10 +535,11 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
 
-      expect(response.status).toBe(500);
-      expect(json.error).toContain("Request timeout");
+      expect(response.status).toBe(200);
+      expect(streamText).toContain("event: error");
+      expect(streamText).toContain("Request timeout");
     });
 
     it("handles unknown errors", async () => {
@@ -529,10 +553,11 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
 
-      expect(response.status).toBe(500);
-      expect(json.error).toBe("Unknown error string");
+      expect(response.status).toBe(200);
+      expect(streamText).toContain("event: error");
+      expect(streamText).toContain("Regeneration failed");
     });
   });
 
@@ -555,10 +580,18 @@ describe("POST /api/ai/regenerate-global-template - Integration Tests", () => {
       });
 
       const response = await POST(request);
-      const json = await response.json();
+      const streamText = await response.text();
+      const events = streamText
+        .split("\n\n")
+        .filter((line) => line.trim().length > 0)
+        .map((event) => {
+          const match = event.match(/data: (.+)/);
+          return match ? JSON.parse(match[1]) : null;
+        })
+        .filter((e) => e !== null);
 
       expect(response.status).toBe(200);
-      expect(json.ok).toBe(true);
+      expect(events[events.length - 1].type).toBe("done");
     });
 
     it("handles template with many placeholders", async () => {

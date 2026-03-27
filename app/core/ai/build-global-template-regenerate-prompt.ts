@@ -12,16 +12,15 @@ export function buildGlobalTemplateRegeneratePrompt(
       : "None provided. Preserve any valid placeholders already present in the current templates.";
 
   return [
-    "You may perform only one task: regenerate a reusable outbound email template.",
-    "Rewrite both the global subject template and the global body template.",
+    "You may perform only one task: regenerate a reusable outbound email body template.",
+    "Rewrite the global body template only.",
     "Treat the user prompt as rewrite guidance for the campaign-wide template only.",
     "Preserve valid {{placeholder}} tokens and do not invent new placeholder names outside the allowed list when one is provided.",
     "Keep the tone concise, personalized, and ready to send.",
-    "Return valid JSON with keys: subject, body, reasoning.",
-    "Do not return markdown, code fences, or any extra keys.",
+    "Return only the email body text.",
+    "Do not return JSON, labels, subject lines, reasoning, markdown, or code fences.",
     `Rewrite mode: ${body.mode ?? "refresh"}`,
     `User regeneration prompt: ${prompt}`,
-    `Current global subject template: ${body.globalSubject}`,
     `Current global body template: ${body.globalBodyTemplate}`,
     `Available placeholders: ${placeholderList}`,
     `Primary recipient placeholder: ${body.detectedRecipientPlaceholder ?? "None provided."}`,

@@ -139,6 +139,7 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
                 id="global-subject"
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
+                disabled={isRegenerating}
               />
             </div>
 
@@ -194,7 +195,13 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
                 className="min-h-[150px] sm:min-h-[220px]"
+                disabled={isRegenerating}
               />
+              {isRegenerating ? (
+                <p className="text-sm text-muted-foreground animate-pulse">
+                  AI is generating...
+                </p>
+              ) : null}
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
             </div>
 
@@ -275,21 +282,30 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
             </Button>
             <Button
               onClick={async () => {
-                const result = await regenerate({
-                  globalSubject: subject,
-                  globalBodyTemplate: body,
-                  prompt,
-                  availablePlaceholders,
-                  detectedRecipientPlaceholder,
-                });
+                // Close modal immediately
+                setRegenerateDialogOpen(false);
+
+                // Stream body text progressively
+                const result = await regenerate(
+                  {
+                    globalSubject: subject,
+                    globalBodyTemplate: body,
+                    prompt,
+                    availablePlaceholders,
+                    detectedRecipientPlaceholder,
+                  },
+                  (streamingBody) => {
+                    // Update body field with streaming text
+                    setBody(streamingBody);
+                  },
+                );
 
                 if (!result) {
                   return;
                 }
 
-                setSubject(result.subject);
-                setBody(result.body);
-                setRegenerateDialogOpen(false);
+                // result is just a string (body text)
+                setBody(result);
               }}
               disabled={!prompt.trim() || isRegenerating}
             >

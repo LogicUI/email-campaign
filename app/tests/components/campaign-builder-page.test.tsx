@@ -659,15 +659,26 @@ describe("CampaignBuilderPage", () => {
     const user = userEvent.setup();
     seedCampaign();
     useAiSettingsStore.getState().setProviderApiKey("openai", "sk-test-openai");
+
+    // Create a mock SSE stream
+    const stream = new ReadableStream({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(
+          encoder.encode(
+            'event: done\ndata: {"type":"done","data":{"body":"Hi {{clinic_name}},\\n\\nHere is a sharper reusable template."}}\n\n',
+          ),
+        );
+        controller.close();
+      },
+    });
+
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        ok: true,
-        data: {
-          subject: "Fresh intro for {{clinic_name}}",
-          body: "Hi {{clinic_name}},\n\nHere is a sharper reusable template.",
-        },
-      }),
+      body: stream,
+      headers: {
+        get: (name: string) => (name === "content-type" ? "text/event-stream" : null),
+      },
     });
 
     vi.stubGlobal("fetch", fetchMock);
@@ -700,7 +711,7 @@ describe("CampaignBuilderPage", () => {
     });
 
     expect(screen.getByLabelText("Global subject")).toHaveValue(
-      "Fresh intro for {{clinic_name}}",
+      "Helping {{clinic_name}} reduce no-shows",
     );
     expect(screen.getByLabelText("Global body template")).toHaveValue(
       "Hi {{clinic_name}},\n\nHere is a sharper reusable template.",
