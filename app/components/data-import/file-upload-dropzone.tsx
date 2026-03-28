@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { Database, Sheet, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { FileUploadDropzoneProps } from "@/types/file-upload-dropzone";
 
 export function FileUploadDropzone(props: FileUploadDropzoneProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     error,
     isImporting,
@@ -29,8 +31,7 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
             className="group flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-white/70 p-6 text-left transition-all hover:border-primary/40 hover:bg-white/90 hover:shadow-md disabled:opacity-50 disabled:hover:border-border/60 disabled:hover:bg-white/70 disabled:hover:shadow-none"
             disabled={isImporting}
             onClick={() => {
-              const input = document.getElementById("file-upload-input") as HTMLInputElement;
-              input?.click();
+              fileInputRef.current?.click();
             }}
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/50">
@@ -75,6 +76,7 @@ export function FileUploadDropzone(props: FileUploadDropzoneProps) {
         </div>
 
         <input
+          ref={fileInputRef}
           id="file-upload-input"
           type="file"
           accept=".csv,.xlsx,.xls"
