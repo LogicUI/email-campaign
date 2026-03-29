@@ -16,6 +16,7 @@ export interface Campaign {
   name: string;
   globalSubject: string;
   globalBodyTemplate: string;
+  globalBodyEditorJson?: string; // TipTap JSON for rich text editing (optional for backward compatibility)
   globalCcEmails?: string[];
   globalAttachments?: Attachment[];
   createdAt: string;
@@ -51,6 +52,7 @@ export interface CampaignRecipient {
   sourceSheetName?: string;
   subject: string;
   body: string;
+  bodyEditorJson?: string; // TipTap JSON for rich text editing (optional for backward compatibility)
   checked: boolean;
   sent: boolean;
   status: SendStatus;
@@ -60,8 +62,6 @@ export interface CampaignRecipient {
   lastGenerationAt?: string;
   manualEditsSinceGenerate: boolean;
   isRegenerating: boolean;
-  regenerationPhase: "idle" | "streaming" | "finalizing";
-  streamOriginalBody?: string;
   lastGenerationReasoning?: string;
   isSending: boolean;
   lastSendAttemptAt?: string;

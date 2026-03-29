@@ -1,4 +1,4 @@
-import type { BulkSendRequest, RegenerateRequest, SendPayloadRecipient } from "@/types/api";
+import type { BulkSendRequest, RegenerateRequest, SendPayloadRecipient, TestEmailRequest } from "@/types/api";
 import type { GlobalTemplateRegenerateRequest } from "@/types/api";
 
 /**
@@ -92,17 +92,18 @@ export function createGlobalTemplateRegenerateRequest(
  * @returns Mock test email request payload
  */
 export function createTestEmailRequest(
-  overrides: {
+  overrides: Partial<TestEmailRequest> & {
     toEmail?: string;
-    to?: string;
-    subject?: string;
-    body?: string;
-  } = {}
-) {
+  } = {},
+): TestEmailRequest {
   return {
     to: overrides.to || overrides.toEmail || "test@example.com",
     subject: overrides.subject || "Test Subject",
     body: overrides.body || "Test Body",
+    bodyHtml: overrides.bodyHtml,
+    bodyText: overrides.bodyText,
+    ccEmails: overrides.ccEmails,
+    attachments: overrides.attachments,
   };
 }
 

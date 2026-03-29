@@ -34,6 +34,7 @@ export interface CreateCampaignFromPreviewPayload {
   name: string;
   globalSubject: string;
   globalBodyTemplate: string;
+  globalBodyEditorJson?: string;
   globalCcEmails?: string[];
   globalAttachments?: Attachment[];
   sourceType?: Campaign["sourceType"];
@@ -43,6 +44,7 @@ export interface CreateCampaignFromPreviewPayload {
 export interface UpdateGlobalTemplatePayload {
   globalSubject: string;
   globalBodyTemplate: string;
+  globalBodyEditorJson?: string;
   globalCcEmails?: string[];
   globalAttachments?: Attachment[];
   applyMode: "untouched" | "all";
@@ -85,6 +87,7 @@ export interface CampaignStoreActions {
   removeRecipient: (id: string) => void;
   updateRecipientEmail: (id: string, email: string) => void;
   updateRecipientBody: (id: string, body: string) => void;
+  updateRecipientBodyWithJson: (id: string, body: string, bodyEditorJson?: string) => void;
   updateRecipientSubject: (id: string, subject: string) => void;
   updateRecipientCcEmails: (id: string, ccEmails: string[]) => void;
   updateRecipientAttachments: (id: string, attachments: CampaignRecipient["attachments"]) => void;
@@ -94,7 +97,6 @@ export interface CampaignStoreActions {
   setPageSize: (pageSize: number) => void;
   setRecipientStatusView: (view: RecipientStatusView) => void;
   startRecipientRegeneration: (id: string) => void;
-  appendGeneratedBodyChunk: (id: string, chunk: string) => void;
   failRecipientRegeneration: (payload: FailRecipientRegenerationPayload) => void;
   applyGeneratedBody: (payload: ApplyGeneratedBodyPayload) => void;
   markRecipientsQueued: (ids: string[]) => void;

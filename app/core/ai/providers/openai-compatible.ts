@@ -1,26 +1,26 @@
 import OpenAI from "openai";
 
-import type { AiProviderParsedResponse, AiStreamDraftParams } from "@/types/ai-provider";
+import type { AiGenerateDraftParams, AiProviderParsedResponse } from "@/types/ai-provider";
 
 /**
- * Normalizes streamed delta payloads from OpenAI-compatible chat APIs.
+ * Normalizes message content payloads from OpenAI-compatible chat APIs.
  *
- * Different SDKs may surface deltas as strings or structured content parts. This
- * helper collapses those variants into plain text for the regenerate stream.
+ * Different SDKs may surface content as strings or structured content parts. This
+ * helper collapses those variants into plain text for the regenerate response.
  *
- * @param delta Provider delta payload from the SDK.
- * @returns Plain text delta content.
+ * @param content Provider content payload from the SDK.
+ * @returns Plain text message content.
  */
-function getDeltaText(delta: unknown) {
-  if (typeof delta === "string") {
-    return delta;
+function getMessageText(content: unknown) {
+  if (typeof content === "string") {
+    return content;
   }
 
-  if (!Array.isArray(delta)) {
+  if (!Array.isArray(content)) {
     return "";
   }
 
-  return delta
+  return content
     .map((part) => {
       if (typeof part === "string") {
         return part;
@@ -36,17 +36,17 @@ function getDeltaText(delta: unknown) {
 }
 
 /**
- * Streams a regenerated draft from an OpenAI-compatible chat endpoint.
+ * Generates a regenerated draft from an OpenAI-compatible chat endpoint.
  *
  * This adapter is shared by OpenAI itself and compatible providers such as DeepSeek
- * so the app only needs one implementation for streaming text-delta handling.
+ * so the app only needs one implementation for plain text response handling.
  *
- * @param params Provider request parameters plus streaming callbacks.
+ * @param params Provider request parameters.
  * @param options.baseURL Optional alternate API base URL for compatible providers.
  * @returns Parsed provider response containing the final body text.
  */
-export async function streamWithOpenAiCompatible(
-  params: AiStreamDraftParams,
+export async function generateWithOpenAiCompatible(
+  params: AiGenerateDraftParams,
   options?: {
     baseURL?: string;
   },
@@ -56,9 +56,8 @@ export async function streamWithOpenAiCompatible(
     baseURL: options?.baseURL,
   });
 
-  const stream = await client.chat.completions.create({
+  const completion = await client.chat.completions.create({
     model: params.model,
-    stream: true,
     messages: [
       {
         role: "system",
@@ -71,20 +70,7 @@ export async function streamWithOpenAiCompatible(
     ],
   });
 
-  let body = "";
-
-  for await (const chunk of stream) {
-    const delta = getDeltaText(chunk.choices[0]?.delta?.content);
-
-    if (!delta) {
-      continue;
-    }
-
-    body += delta;
-    await params.onBodyDelta(delta);
-  }
-
-  const trimmedBody = body.trim();
+  const trimmedBody = getMessageText(completion.choices[0]?.message?.content).trim();
 
   if (!trimmedBody) {
     throw new Error("AI provider returned an empty response.");

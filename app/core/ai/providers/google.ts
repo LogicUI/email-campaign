@@ -1,21 +1,21 @@
 import { GoogleGenAI } from "@google/genai";
 
-import type { AiProviderParsedResponse, AiStreamDraftParams } from "@/types/ai-provider";
+import type { AiGenerateDraftParams, AiProviderParsedResponse } from "@/types/ai-provider";
 
 /**
- * Streams a regenerated draft from Google's Gemini API and forwards body deltas.
+ * Generates a regenerated draft from Google's Gemini API.
  *
- * @param params Provider request parameters plus streaming callbacks.
+ * @param params Provider request parameters.
  * @returns Parsed provider response containing the final body text.
  */
 export async function generateWithGoogle(
-  params: AiStreamDraftParams,
+  params: AiGenerateDraftParams,
 ): Promise<AiProviderParsedResponse> {
   const client = new GoogleGenAI({
     apiKey: params.apiKey,
   });
 
-  const response = await client.models.generateContentStream({
+  const response = await client.models.generateContent({
     model: params.model,
     contents: params.prompt,
     config: {
@@ -23,20 +23,7 @@ export async function generateWithGoogle(
     },
   });
 
-  let body = "";
-
-  for await (const chunk of response) {
-    const text = chunk.text;
-
-    if (!text) {
-      continue;
-    }
-
-    body += text;
-    await params.onBodyDelta(text);
-  }
-
-  const content = body.trim();
+  const content = response.text?.trim() ?? "";
 
   if (!content) {
     throw new Error("AI provider returned an empty response.");

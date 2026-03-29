@@ -168,7 +168,7 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/closeComposeDialog",
         ),
 
-      createCampaignFromPreview: ({ name, globalSubject, globalBodyTemplate, globalCcEmails, globalAttachments, sourceType, savedListId }) => {
+      createCampaignFromPreview: ({ name, globalSubject, globalBodyTemplate, globalBodyEditorJson, globalCcEmails, globalAttachments, sourceType, savedListId }) => {
         const preview = get().importPreview;
 
         if (!preview) {
@@ -193,6 +193,7 @@ export const useCampaignStore = create<CampaignStore>()(
               name,
               globalSubject,
               globalBodyTemplate,
+              globalBodyEditorJson,
               globalCcEmails,
               globalAttachments,
               createdAt: new Date().toISOString(),
@@ -237,7 +238,7 @@ export const useCampaignStore = create<CampaignStore>()(
         );
       },
 
-      updateGlobalTemplate: ({ globalSubject, globalBodyTemplate, globalCcEmails, globalAttachments, applyMode }) =>
+      updateGlobalTemplate: ({ globalSubject, globalBodyTemplate, globalBodyEditorJson, globalCcEmails, globalAttachments, applyMode }) =>
         set(
           (state) => {
             if (!state.campaign) {
@@ -261,6 +262,7 @@ export const useCampaignStore = create<CampaignStore>()(
                 if (shouldApplyContent) {
                   updatedRecipient.subject = mergeTemplate(globalSubject, recipient.fields);
                   updatedRecipient.body = mergeTemplate(globalBodyTemplate, recipient.fields);
+                  updatedRecipient.bodyEditorJson = undefined;
                   updatedRecipient.ccEmails = globalCcEmails;
                   updatedRecipient.bodySource = "global-template" as const;
                 }
@@ -274,6 +276,7 @@ export const useCampaignStore = create<CampaignStore>()(
                 ...state.campaign,
                 globalSubject,
                 globalBodyTemplate,
+                globalBodyEditorJson,
                 globalCcEmails,
                 globalAttachments,
               },
@@ -313,7 +316,6 @@ export const useCampaignStore = create<CampaignStore>()(
               bodySource: "manual",
               manualEditsSinceGenerate: false,
               isRegenerating: false,
-              regenerationPhase: "idle",
               isSending: false,
             };
 
@@ -416,6 +418,29 @@ export const useCampaignStore = create<CampaignStore>()(
           }),
           false,
           "campaign/updateRecipientBody",
+        ),
+
+      updateRecipientBodyWithJson: (id, body, bodyEditorJson) =>
+        set(
+          (state) => ({
+            recipientsById: {
+              ...state.recipientsById,
+              [id]: {
+                ...state.recipientsById[id],
+                body,
+                bodyEditorJson,
+                bodySource: "manual",
+                manualEditsSinceGenerate: true,
+              },
+            },
+            ui: {
+              ...state.ui,
+              needsDatabaseSync: true,
+              lastDatabaseSyncError: undefined,
+            },
+          }),
+          false,
+          "campaign/updateRecipientBodyWithJson",
         ),
 
       updateRecipientSubject: (id, subject) =>
@@ -560,10 +585,7 @@ export const useCampaignStore = create<CampaignStore>()(
                 ...state.recipientsById,
                 [id]: {
                   ...existing,
-                  body: "",
                   isRegenerating: true,
-                  regenerationPhase: "streaming" as const,
-                  streamOriginalBody: existing.body,
                   errorMessage: undefined,
                 },
               },
@@ -573,7 +595,7 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/startRecipientRegeneration",
         ),
 
-      appendGeneratedBodyChunk: (id, chunk) =>
+      failRecipientRegeneration: ({ id, errorMessage, promptVersion = "rest-v1" }) =>
         set(
           (state) => {
             const existing = state.recipientsById[id];
@@ -582,37 +604,12 @@ export const useCampaignStore = create<CampaignStore>()(
               return state;
             }
 
-            return {
-              recipientsById: {
-                ...state.recipientsById,
-                [id]: {
-                  ...existing,
-                  body: `${existing.body}${chunk}`,
-                  regenerationPhase: "streaming",
-                },
-              },
-            };
-          },
-          false,
-          "campaign/appendGeneratedBodyChunk",
-        ),
-
-      failRecipientRegeneration: ({ id, errorMessage, promptVersion = "stream-v1" }) =>
-        set(
-          (state) => {
-            const existing = state.recipientsById[id];
-
-            if (!existing) {
-              return state;
-            }
-
-            const restoredBody = existing.streamOriginalBody ?? existing.body;
             const nextLog: GenerationLogItem = {
               id: createId("genlog"),
               recipientId: id,
               createdAt: new Date().toISOString(),
               promptVersion,
-              inputBody: existing.streamOriginalBody ?? existing.body,
+              inputBody: existing.body,
               status: "failed",
               errorMessage,
             };
@@ -622,10 +619,7 @@ export const useCampaignStore = create<CampaignStore>()(
                 ...state.recipientsById,
                 [id]: {
                   ...existing,
-                  body: restoredBody,
                   isRegenerating: false,
-                  regenerationPhase: "idle",
-                  streamOriginalBody: undefined,
                   errorMessage,
                 },
               },
@@ -641,7 +635,7 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/failRecipientRegeneration",
         ),
 
-      applyGeneratedBody: ({ id, body, subject, reasoning, promptVersion = "stream-v1" }) =>
+      applyGeneratedBody: ({ id, body, subject, reasoning, promptVersion = "rest-v1" }) =>
         set(
           (state) => {
             const existing = state.recipientsById[id];
@@ -655,7 +649,7 @@ export const useCampaignStore = create<CampaignStore>()(
               recipientId: id,
               createdAt: new Date().toISOString(),
               promptVersion,
-              inputBody: existing.streamOriginalBody ?? existing.body,
+              inputBody: existing.body,
               outputBody: body,
               status: "success",
             };
@@ -666,6 +660,7 @@ export const useCampaignStore = create<CampaignStore>()(
                 [id]: {
                   ...existing,
                   body,
+                  bodyEditorJson: undefined,
                   subject: subject ?? existing.subject,
                   bodySource: "ai-generated",
                   lastGeneratedBody: body,
@@ -673,8 +668,6 @@ export const useCampaignStore = create<CampaignStore>()(
                   lastGenerationReasoning: reasoning,
                   manualEditsSinceGenerate: false,
                   isRegenerating: false,
-                  regenerationPhase: "idle",
-                  streamOriginalBody: undefined,
                   errorMessage: undefined,
                 },
               },

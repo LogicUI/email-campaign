@@ -62,6 +62,7 @@ describe("POST /api/send/bulk", () => {
           ],
         }),
       }) as never,
+      {} as never,
     );
 
     expect(response.status).toBe(401);
@@ -103,6 +104,7 @@ describe("POST /api/send/bulk", () => {
           ],
         }),
       }) as never,
+      {} as never,
     );
 
     await expect(response.json()).resolves.toMatchObject({
@@ -124,6 +126,61 @@ describe("POST /api/send/bulk", () => {
         fromEmail: "sender@example.com",
         subject: "Hello",
         toEmail: "recipient@example.com",
+      }),
+    );
+  });
+
+  it("passes through rich html bodies when provided", async () => {
+    vi.mocked(requireApiSession).mockResolvedValueOnce({
+      session: {
+        user: {
+          email: "sender@example.com",
+        },
+      },
+    } as never);
+    vi.mocked(getAuthToken).mockResolvedValueOnce({
+      accessToken: "token_123",
+    } as never);
+    vi.mocked(getValidGoogleAccessToken).mockResolvedValueOnce("token_123");
+    vi.mocked(sendGmailMessage).mockResolvedValueOnce({
+      id: "gmail_message_html",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/send/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          campaignId: "campaign_1",
+          sendJobId: "sendjob_1",
+          recipients: [
+            {
+              id: "recipient_1",
+              email: "recipient@example.com",
+              subject: "Hello",
+              body: "Hello world",
+              bodyHtml: '<p>Hello world</p><img src="cid:img_123" data-content-id="img_123" />',
+              bodyText: "Hello world\n\n[Image]",
+              attachments: [
+                {
+                  filename: "demo.png",
+                  contentType: "image/png",
+                  data: "ZmFrZQ==",
+                  isInline: true,
+                  contentId: "img_123",
+                },
+              ],
+            },
+          ],
+        }),
+      }) as never,
+      {} as never,
+    );
+
+    expect(response.status).toBe(200);
+    expect(sendGmailMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bodyHtml: '<p>Hello world</p><img src="cid:img_123" data-content-id="img_123" />',
+        bodyText: "Hello world\n\n[Image]",
       }),
     );
   });

@@ -478,11 +478,13 @@ export function CampaignBuilderPage({
         open={composeDialogOpen}
         campaign={composeDefaults}
         preview={preview}
+        senderEmail={senderEmail}
         onClose={closeComposeDialog}
-        onSubmit={({ applyMode, globalBodyTemplate, globalSubject, globalCcEmails, globalAttachments, name }) => {
+        onSubmit={({ applyMode, globalBodyTemplate, globalBodyEditorJson, globalSubject, globalCcEmails, globalAttachments, name }) => {
           if (campaign) {
             updateGlobalTemplate({
               globalBodyTemplate,
+              globalBodyEditorJson,
               globalSubject,
               globalCcEmails,
               globalAttachments,
@@ -495,6 +497,7 @@ export function CampaignBuilderPage({
           createCampaignFromPreview({
             name,
             globalBodyTemplate,
+            globalBodyEditorJson,
             globalSubject,
             globalCcEmails,
             globalAttachments,

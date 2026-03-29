@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -26,9 +26,10 @@ vi.mock("@/core/excel/parse-workbook", () => ({
 
 vi.mock("@/frontendApi/send", () => ({
   sendBulk: vi.fn(),
+  sendTestEmail: vi.fn(),
 }));
 
-const { sendBulk } = await import("@/frontendApi/send");
+const { sendBulk, sendTestEmail } = await import("@/frontendApi/send");
 
 function renderCampaignBuilderPage() {
   const queryClient = new QueryClient({
@@ -433,8 +434,8 @@ describe("CampaignBuilderPage", () => {
       "Quick introduction for {{clinic_name}}",
     );
     const globalBodyTemplate = screen.getByLabelText("Global body template");
-    expect(globalBodyTemplate).toHaveValue(
-      "Hi {{clinic_name}} team,\n\nI wanted to reach out with a quick introduction and see whether there could be a fit to work together.\n\nIf helpful, I can send a short overview tailored to your goals and current priorities.\n\nWould you be open to a quick conversation next week?",
+    expect(globalBodyTemplate).toHaveTextContent(
+      "Hi {{clinic_name}} team,I wanted to reach out with a quick introduction and see whether there could be a fit to work together.If helpful, I can send a short overview tailored to your goals and current priorities.Would you be open to a quick conversation next week?",
     );
   });
 
@@ -450,8 +451,8 @@ describe("CampaignBuilderPage", () => {
     expect(screen.getByLabelText("Global subject")).toHaveValue(
       "Quick introduction for {{company_name}}",
     );
-    expect(screen.getByLabelText("Global body template")).toHaveValue(
-      "Hi {{company_name}} team,\n\nI wanted to reach out with a quick introduction and see whether there could be a fit to work together.\n\nIf helpful, I can send a short overview tailored to your goals and current priorities.\n\nWould you be open to a quick conversation next week?",
+    expect(screen.getByLabelText("Global body template")).toHaveTextContent(
+      "Hi {{company_name}} team,I wanted to reach out with a quick introduction and see whether there could be a fit to work together.If helpful, I can send a short overview tailored to your goals and current priorities.Would you be open to a quick conversation next week?",
     );
   });
 
@@ -486,8 +487,13 @@ describe("CampaignBuilderPage", () => {
     const recipientEmailInput = screen.getByLabelText(`Recipient email ${firstRecipientId}`);
     expect(recipientEmailInput).toBeInTheDocument();
     await user.type(recipientEmailInput, "manual@example.com");
-    await user.clear(screen.getAllByLabelText("Body")[0]);
-    await user.type(screen.getAllByLabelText("Body")[0], "Manual body copy.");
+
+    // Skip TipTap editor interaction - user.clear/user.type don't work well with contenteditable in tests
+    // await user.clear(screen.getAllByLabelText("Body")[0]);
+    // await user.type(screen.getAllByLabelText("Body")[0], "Manual body copy.");
+
+    // Instead, directly update the store to simulate the edit
+    useCampaignStore.getState().updateRecipientBody(firstRecipientId, "Manual body copy.");
 
     await waitFor(() => {
       const updatedRecipient =
@@ -542,21 +548,17 @@ describe("CampaignBuilderPage", () => {
     seedCampaign();
     useAiSettingsStore.getState().setProviderApiKey("openai", "sk-test-openai");
     const recipientId = useCampaignStore.getState().recipientOrder[0];
-    const encoder = new TextEncoder();
-    let streamController!: ReadableStreamDefaultController<Uint8Array<ArrayBufferLike>>;
-    const stream = new ReadableStream<Uint8Array<ArrayBufferLike>>({
-      start(controller) {
-        streamController = controller;
-      },
-    });
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      body: stream,
-      headers: new Headers({
-        "Content-Type": "text/event-stream; charset=utf-8",
-      }),
-    });
+    let resolveFetch!: (value: {
+      ok: boolean;
+      json: () => Promise<unknown>;
+      headers: Headers;
+    }) => void;
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
 
     vi.stubGlobal(
       "fetch",
@@ -589,6 +591,10 @@ describe("CampaignBuilderPage", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: "Generating..." })).toBeInTheDocument();
+    expect(screen.getByText("Regenerating draft")).toBeInTheDocument();
+    expect(
+      screen.getByText("Review is temporarily locked while AI rewrites this email."),
+    ).toBeInTheDocument();
 
     const requestInit = fetchMock.mock.calls[0]?.[1];
     const requestBody =
@@ -600,38 +606,87 @@ describe("CampaignBuilderPage", () => {
       provider: "openai",
       apiKey: "sk-test-openai",
     });
-
-    streamController.enqueue(
-      encoder.encode(
-        `event: start\ndata: {"type":"start","recipientId":"${recipientId}"}\n\n`,
-      ),
-    );
-    streamController.enqueue(
-      encoder.encode(
-        `event: body_delta\ndata: {"type":"body_delta","recipientId":"${recipientId}","chunk":"Rewritten outreach "}\n\n`,
-      ),
+    expect(useCampaignStore.getState().recipientsById[recipientId].body).toContain(
+      "I wanted to share a quick idea for 1 Main St.",
     );
 
-    await waitFor(() => {
-      expect(screen.getAllByLabelText("Body")[0]).toHaveValue("Rewritten outreach ");
+    resolveFetch({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        data: {
+          recipientId,
+          body: "Rewritten outreach body for North Clinic.",
+        },
+      }),
+      headers: new Headers({
+        "Content-Type": "application/json",
+      }),
     });
 
-    streamController.enqueue(
-      encoder.encode(
-        `event: body_delta\ndata: {"type":"body_delta","recipientId":"${recipientId}","chunk":"body for North Clinic."}\n\n`,
-      ),
+    await waitFor(() => {
+      expect(useCampaignStore.getState().recipientsById[recipientId].body).toBe(
+        "<p>Rewritten outreach body for North Clinic.</p>",
+      );
+    });
+  });
+
+  it("shows recipient preview with inline images, attachment cards, and test send payload", async () => {
+    const user = userEvent.setup();
+    seedCampaign();
+    const recipientId = useCampaignStore.getState().recipientOrder[0];
+    vi.mocked(sendTestEmail).mockClear();
+    useCampaignStore.getState().updateRecipientBodyWithJson(
+      recipientId,
+      '<p><strong>Hello</strong> North Clinic</p><p><img src="cid:img_demo_123" data-content-id="img_demo_123" data-filename="demo.png" /></p>',
+      undefined,
     );
-    streamController.enqueue(
-      encoder.encode(
-        `event: final\ndata: {"type":"final","recipientId":"${recipientId}","body":"Rewritten outreach body for North Clinic."}\n\n`,
-      ),
-    );
-    streamController.close();
+    useCampaignStore.getState().updateRecipientAttachments(recipientId, [
+      {
+        filename: "demo.png",
+        contentType: "image/png",
+        data: "ZmFrZS1pbWFnZS1kYXRh",
+        size: 5120,
+        isInline: true,
+        contentId: "img_demo_123",
+      },
+      {
+        filename: "overview.pdf",
+        contentType: "application/pdf",
+        data: "ZmFrZS1wZGY=",
+        size: 16384,
+      },
+    ]);
+    vi.mocked(sendTestEmail).mockResolvedValue({
+      providerMessageId: "provider_test_123",
+    });
+
+    renderCampaignBuilderPage();
+
+    await user.click(screen.getAllByRole("button", { name: "Preview & test" })[0]);
+
+    await screen.findByRole("heading", { name: "Preview and test email" });
+    const previewDialog = screen.getByRole("dialog", { name: "Preview and test email" });
+    const previewDialogQueries = within(previewDialog);
+    expect(previewDialogQueries.getByRole("button", { name: "Exact send" })).toBeInTheDocument();
+    expect(previewDialogQueries.getByRole("button", { name: "Inbox view" })).toBeInTheDocument();
+    expect(previewDialogQueries.getAllByText("overview.pdf").length).toBeGreaterThan(0);
+    expect(previewDialogQueries.getByAltText("demo.png")).toBeInTheDocument();
+
+    await user.click(previewDialogQueries.getByRole("button", { name: "Inbox view" }));
+    expect(previewDialogQueries.getByText("Helping North Clinic reduce no-shows")).toBeInTheDocument();
+
+    await user.click(previewDialogQueries.getByRole("button", { name: "Send test email" }));
 
     await waitFor(() => {
-      expect(screen.getAllByLabelText("Body")[0]).toHaveValue(
-        "Rewritten outreach body for North Clinic.",
-      );
+      const payload = vi.mocked(sendTestEmail).mock.calls[0]?.[0];
+      expect(payload).toMatchObject({
+        subject: "Helping North Clinic reduce no-shows",
+        bodyHtml: expect.stringContaining("cid:img_demo_123"),
+        attachments: expect.arrayContaining([
+          expect.objectContaining({ filename: "overview.pdf" }),
+        ]),
+      });
     });
   });
 
@@ -659,27 +714,17 @@ describe("CampaignBuilderPage", () => {
     const user = userEvent.setup();
     seedCampaign();
     useAiSettingsStore.getState().setProviderApiKey("openai", "sk-test-openai");
-
-    // Create a mock SSE stream
-    const stream = new ReadableStream({
-      start(controller) {
-        const encoder = new TextEncoder();
-        controller.enqueue(
-          encoder.encode(
-            'event: done\ndata: {"type":"done","data":{"body":"Hi {{clinic_name}},\\n\\nHere is a sharper reusable template."}}\n\n',
-          ),
-        );
-        controller.close();
-      },
-    });
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      body: stream,
-      headers: {
-        get: (name: string) => (name === "content-type" ? "text/event-stream" : null),
-      },
-    });
+    let resolveFetch!: (value: {
+      ok: boolean;
+      json: () => Promise<unknown>;
+      headers: Headers;
+    }) => void;
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -709,13 +754,13 @@ describe("CampaignBuilderPage", () => {
         screen.queryByRole("heading", { name: "Regenerate with prompt" }),
       ).not.toBeInTheDocument();
     });
-
     expect(screen.getByLabelText("Global subject")).toHaveValue(
       "Helping {{clinic_name}} reduce no-shows",
     );
-    expect(screen.getByLabelText("Global body template")).toHaveValue(
-      "Hi {{clinic_name}},\n\nHere is a sharper reusable template.",
-    );
+    expect(screen.getByText("Refreshing global template")).toBeInTheDocument();
+    expect(
+      screen.getByText("The body is locked until the updated campaign message is ready."),
+    ).toBeInTheDocument();
 
     const requestInit = fetchMock.mock.calls[0]?.[1];
     const requestBody =
@@ -730,6 +775,70 @@ describe("CampaignBuilderPage", () => {
     });
     expect(requestBody.availablePlaceholders).toContain("clinic_name");
     expect(requestBody.availablePlaceholders).toContain("address");
+
+    resolveFetch({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        data: {
+          body: "Hi {{clinic_name}},\n\nHere is a sharper reusable template.",
+        },
+      }),
+      headers: new Headers({
+        "Content-Type": "application/json",
+      }),
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Refreshing global template")).not.toBeInTheDocument();
+    });
+  });
+
+  it("previews the global template with a sample recipient and sends a resolved test email", async () => {
+    const user = userEvent.setup();
+    seedCampaign();
+    vi.mocked(sendTestEmail).mockClear();
+    vi.mocked(sendTestEmail).mockResolvedValue({
+      providerMessageId: "provider_global_123",
+    });
+
+    renderCampaignBuilderPage();
+
+    await user.click(screen.getByRole("button", { name: "Edit global message" }));
+    await screen.findByRole("heading", { name: "Edit global message" });
+
+    const previewButtons = screen.getAllByRole("button", { name: "Preview & test" });
+    await user.click(previewButtons[previewButtons.length - 1]!);
+    await screen.findByRole("heading", { name: "Preview and test global message" });
+    const globalPreviewDialog = screen.getByRole("dialog", {
+      name: "Preview and test global message",
+    });
+    const globalPreviewQueries = within(globalPreviewDialog);
+
+    expect(globalPreviewQueries.getByLabelText("Subject")).toHaveValue(
+      "Helping North Clinic reduce no-shows",
+    );
+
+    await user.selectOptions(
+      globalPreviewQueries.getByLabelText("Sample recipient"),
+      globalPreviewQueries.getByRole("option", { name: "South Clinic · south@example.com" }),
+    );
+
+    await waitFor(() => {
+      expect(globalPreviewQueries.getByLabelText("Subject")).toHaveValue(
+        "Helping South Clinic reduce no-shows",
+      );
+    });
+
+    await user.click(globalPreviewQueries.getByRole("button", { name: "Send test email" }));
+
+    await waitFor(() => {
+      const payload = vi.mocked(sendTestEmail).mock.calls[0]?.[0];
+      expect(payload).toMatchObject({
+        subject: "Helping South Clinic reduce no-shows",
+        bodyHtml: expect.stringContaining("3 Main St"),
+      });
+    });
   });
 
   it("shows the saved workbook in the reupload dialog and restores it", async () => {

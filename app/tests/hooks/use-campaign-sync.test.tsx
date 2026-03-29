@@ -54,7 +54,6 @@ const recipients: CampaignRecipient[] = [
     bodySource: "manual",
     manualEditsSinceGenerate: false,
     isRegenerating: false,
-    regenerationPhase: "idle",
     isSending: false,
   },
 ];

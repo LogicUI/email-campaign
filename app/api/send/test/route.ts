@@ -9,7 +9,7 @@ import { successResponse } from "@/api/_lib/api-response";
 import { withApiHandler } from "@/api/_lib/error-handler";
 import { ValidationError } from "@/core/errors/error-classes";
 import { ReauthRequiredError, getValidGoogleAccessToken } from "@/core/auth/google-access-token";
-import { renderHtmlFromText } from "@/core/email/render-email";
+import { renderHtmlFromText, renderTextFromHtml } from "@/core/email/render-email";
 import { sendGmailMessage } from "@/core/integrations/gmail-client";
 import { getZodErrorMessage, testEmailRequestSchema } from "@/zodSchemas/api";
 import { logger } from "@/lib/logger";
@@ -56,11 +56,20 @@ export const POST = withApiHandler(async (request: Request) => {
 
   let response;
   try {
+    const bodyHtml =
+      payload.bodyHtml && payload.bodyHtml.trim().length > 0
+        ? payload.bodyHtml
+        : renderHtmlFromText(payload.body);
+    const bodyText =
+      payload.bodyText && payload.bodyText.trim().length > 0
+        ? payload.bodyText
+        : renderTextFromHtml(bodyHtml);
+
     response = await sendGmailMessage({
       accessToken,
       attachments: payload.attachments,
-      bodyHtml: renderHtmlFromText(payload.body),
-      bodyText: payload.body,
+      bodyHtml,
+      bodyText,
       ccEmails: payload.ccEmails,
       fromEmail: authResult.session.user.email,
       subject: payload.subject,

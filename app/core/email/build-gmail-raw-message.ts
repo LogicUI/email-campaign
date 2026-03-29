@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { generateContentId, isImageAttachment } from "./attachment-utils";
+import { replaceImagePlaceholders } from "./replace-image-placeholders";
+import { extractHtmlForEmail } from "./extract-html-for-email";
 import type { BuildGmailRawMessageParams } from "@/types/gmail";
 
 /**
@@ -60,16 +63,52 @@ function wrapBase64Data(base64Data: string) {
  * This centralizes MIME construction so send routes can consistently generate both
  * text and HTML variants of the email body without duplicating low-level encoding.
  *
- * Supports attachments by using multipart/mixed structure when attachments are present.
+ * Supports:
+ * - Regular file attachments
+ * - Inline images (embedded in HTML body using Content-ID)
+ * - Mixed emails with both inline images and file attachments
  *
  * @param params Message sender, recipient, subject, body variants, and optional attachments.
  * @returns Base64url-encoded raw Gmail message payload.
  */
-export function buildGmailRawMessage(params: BuildGmailRawMessageParams) {
+export async function buildGmailRawMessage(params: BuildGmailRawMessageParams) {
   const hasAttachments = params.attachments && params.attachments.length > 0;
+
+  // Separate inline images from file attachments
+  const inlineImages = hasAttachments
+    ? params.attachments!.filter((att) => att.isInline && isImageAttachment(att))
+    : [];
+  const fileAttachments = hasAttachments
+    ? params.attachments!.filter((att) => !att.isInline)
+    : [];
+
+  // Ensure inline images have contentIds
+  await Promise.all(
+    inlineImages.map(async (img) => {
+      if (!img.contentId) {
+        img.contentId = await generateContentId(img.filename);
+      }
+    })
+  );
+
+  // Extract HTML from TipTap JSON if available, convert placeholders back to {{field_name}}
+  const finalHtml = extractHtmlForEmail(
+    params.editorJson,
+    params.bodyHtml,
+    inlineImages
+  );
+
+  // Replace {{image:filename}} placeholders with cid: references
+  const { html: processedBodyHtml } = await replaceImagePlaceholders(
+    finalHtml,
+    inlineImages
+  );
 
   const outerBoundary = `emailai_outer_${randomUUID().replaceAll("-", "")}`;
   const innerBoundary = `emailai_inner_${randomUUID().replaceAll("-", "")}`;
+  const relatedBoundary = inlineImages.length > 0
+    ? `emailai_related_${randomUUID().replaceAll("-", "")}`
+    : null;
 
   // Build headers array - only add CC header if there are CC recipients
   // This prevents an empty string from creating an extra blank line in the headers
@@ -91,34 +130,82 @@ export function buildGmailRawMessage(params: BuildGmailRawMessageParams) {
 
   const messageParts: string[] = [];
 
-  if (hasAttachments) {
+  const hasInlineImages = inlineImages.length > 0;
+  const hasFileAttachments = fileAttachments.length > 0;
+  const hasAnyAttachments = hasInlineImages || hasFileAttachments;
+
+  if (hasAnyAttachments) {
     // Use multipart/mixed for messages with attachments
     headers.push(`Content-Type: multipart/mixed; boundary="${outerBoundary}"`);
 
-    // Add the body as multipart/alternative
-    messageParts.push(
-      "",
-      `--${outerBoundary}`,
-      `Content-Type: multipart/alternative; boundary="${innerBoundary}"`,
-      "",
-      `--${innerBoundary}`,
-      'Content-Type: text/plain; charset="UTF-8"',
-      "Content-Transfer-Encoding: base64",
-      "",
-      encodeMimePart(params.bodyText),
-      "",
-      `--${innerBoundary}`,
-      'Content-Type: text/html; charset="UTF-8"',
-      "Content-Transfer-Encoding: base64",
-      "",
-      encodeMimePart(params.bodyHtml),
-      "",
-      `--${innerBoundary}--`,
-      ""
-    );
+    // Start with the body part
+    if (hasInlineImages) {
+      // Use multipart/related for inline images
+      messageParts.push(
+        "",
+        `--${outerBoundary}`,
+        `Content-Type: multipart/related; boundary="${relatedBoundary}"`,
+        "",
+        `--${relatedBoundary}`,
+        `Content-Type: multipart/alternative; boundary="${innerBoundary}"`,
+        "",
+        `--${innerBoundary}`,
+        'Content-Type: text/plain; charset="UTF-8"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        encodeMimePart(params.bodyText),
+        "",
+        `--${innerBoundary}`,
+        'Content-Type: text/html; charset="UTF-8"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        encodeMimePart(processedBodyHtml),
+        "",
+        `--${innerBoundary}--`,
+        ""
+      );
 
-    // Add each attachment
-    for (const attachment of params.attachments!) {
+      // Add inline images
+      for (const image of inlineImages) {
+        messageParts.push(
+          `--${relatedBoundary}`,
+          `Content-Type: ${image.contentType}`,
+          "Content-Transfer-Encoding: base64",
+          `Content-Disposition: inline; filename="${sanitizeHeaderValue(image.filename)}"`,
+          `Content-ID: <${image.contentId}>`,
+          "",
+          wrapBase64Data(image.data),
+          ""
+        );
+      }
+
+      messageParts.push(`--${relatedBoundary}--`, "");
+    } else {
+      // No inline images, use multipart/alternative directly
+      messageParts.push(
+        "",
+        `--${outerBoundary}`,
+        `Content-Type: multipart/alternative; boundary="${innerBoundary}"`,
+        "",
+        `--${innerBoundary}`,
+        'Content-Type: text/plain; charset="UTF-8"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        encodeMimePart(params.bodyText),
+        "",
+        `--${innerBoundary}`,
+        'Content-Type: text/html; charset="UTF-8"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        encodeMimePart(params.bodyHtml),
+        "",
+        `--${innerBoundary}--`,
+        ""
+      );
+    }
+
+    // Add file attachments
+    for (const attachment of fileAttachments) {
       messageParts.push(
         `--${outerBoundary}`,
         `Content-Type: ${attachment.contentType}`,

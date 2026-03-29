@@ -80,7 +80,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         body: JSON.stringify(createTestEmailRequest()),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
 
       expect(response.status).toBe(401);
       const json = await response.json();
@@ -98,7 +98,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         body: JSON.stringify(createTestEmailRequest()),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
 
       expect(response.status).toBe(401);
       const json = await response.json();
@@ -119,7 +119,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         }),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
 
       expect(response.status).toBe(400);
       expect(mockSendGmailMessage).not.toHaveBeenCalled();
@@ -137,7 +137,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         }),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
 
       expect(response.status).toBe(400);
       const json = await response.json();
@@ -156,7 +156,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         }),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
 
       expect(response.status).toBe(400);
       const json = await response.json();
@@ -175,7 +175,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         }),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
 
       expect(response.status).toBe(400);
       const json = await response.json();
@@ -191,7 +191,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         body: JSON.stringify({}),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
 
       expect(response.status).toBe(400);
       const json = await response.json();
@@ -216,7 +216,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         ),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(200);
@@ -248,7 +248,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         ),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(200);
@@ -261,6 +261,45 @@ describe("POST /api/send/test - Integration Tests", () => {
       expect(callArgs.bodyHtml).toContain("<div");
       expect(callArgs.bodyHtml).toContain("<br />");
       expect(callArgs.bodyHtml).toContain("Line 1");
+    });
+
+    it("passes rich html and inline attachments through to Gmail", async () => {
+      mockAuthenticatedUser({ email: "sender@example.com" });
+      mockSendGmailMessage.mockResolvedValueOnce({ id: "gmail_msg_inline" });
+
+      const request = new Request("http://localhost/api/send/test", {
+        method: "POST",
+        body: JSON.stringify(
+          createTestEmailRequest({
+            toEmail: "recipient@example.com",
+            subject: "Inline image",
+            body: "Intro\n\n[Image]\n\nOutro",
+            bodyHtml:
+              '<p>Intro</p><p><img src="cid:img_demo_123" data-content-id="img_demo_123" /></p><p>Outro</p>',
+            bodyText: "Intro\n\n[Image]\n\nOutro",
+            attachments: [
+              {
+                filename: "demo.png",
+                contentType: "image/png",
+                data: "ZmFrZQ==",
+                isInline: true,
+                contentId: "img_demo_123",
+              },
+            ],
+          })
+        ),
+      });
+
+      const response = await POST(request as never, {} as never);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.ok).toBe(true);
+
+      const callArgs = mockSendGmailMessage.mock.calls[mockSendGmailMessage.mock.calls.length - 1][0];
+      expect(callArgs.bodyHtml).toContain('cid:img_demo_123');
+      expect(callArgs.attachments).toHaveLength(1);
+      expect(callArgs.attachments?.[0]?.contentId).toBe("img_demo_123");
     });
 
     it("sends test email to different recipients", async () => {
@@ -287,7 +326,7 @@ describe("POST /api/send/test - Integration Tests", () => {
           ),
         });
 
-        const response = await POST(request as never);
+        const response = await POST(request as never, {} as never);
         const json = await response.json();
 
         expect(response.status).toBe(200);
@@ -311,7 +350,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         body: JSON.stringify(createTestEmailRequest()),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(500);
@@ -328,7 +367,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         body: JSON.stringify(createTestEmailRequest()),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(500);
@@ -345,7 +384,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         body: JSON.stringify(createTestEmailRequest()),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(500);
@@ -362,7 +401,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         body: JSON.stringify(createTestEmailRequest()),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(500);
@@ -386,7 +425,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         ),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(200);
@@ -410,7 +449,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         ),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(200);
@@ -434,7 +473,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         ),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(200);
@@ -458,7 +497,7 @@ describe("POST /api/send/test - Integration Tests", () => {
         ),
       });
 
-      const response = await POST(request as never);
+      const response = await POST(request as never, {} as never);
       const json = await response.json();
 
       expect(response.status).toBe(200);

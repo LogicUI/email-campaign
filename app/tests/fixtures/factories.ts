@@ -96,8 +96,6 @@ export function createTestRecipients(
     lastGenerationAt: overrides.lastGenerationAt,
     manualEditsSinceGenerate: overrides.manualEditsSinceGenerate ?? false,
     isRegenerating: overrides.isRegenerating ?? false,
-    regenerationPhase: overrides.regenerationPhase || "idle",
-    streamOriginalBody: overrides.streamOriginalBody,
     lastGenerationReasoning: overrides.lastGenerationReasoning,
     isSending: overrides.isSending ?? false,
     errorMessage: overrides.errorMessage,
@@ -145,6 +143,10 @@ export function createTestSendRecipients(
     email: overrides.email || `recipient${i + 1}@example.com`,
     subject: overrides.subject || `Test Subject ${i + 1}`,
     body: overrides.body || `Test body ${i + 1}`,
+    bodyHtml: overrides.bodyHtml,
+    bodyText: overrides.bodyText,
+    ccEmails: overrides.ccEmails,
+    attachments: overrides.attachments,
   }));
 }
 

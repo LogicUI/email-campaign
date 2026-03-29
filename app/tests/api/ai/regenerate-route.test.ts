@@ -46,14 +46,10 @@ describe("POST /api/ai/regenerate", () => {
         },
       },
     } as never);
-    vi.mocked(dispatchRegenerate).mockImplementationOnce(async (params) => {
-      await params.onBodyDelta("Refined ");
-      await params.onBodyDelta("body");
-      return {
-        body: "Refined body",
-        reasoning: "Tightened the opener.",
-        subject: "Refined subject",
-      };
+    vi.mocked(dispatchRegenerate).mockResolvedValueOnce({
+      body: "Refined body",
+      reasoning: "Tightened the opener.",
+      subject: "Refined subject",
     });
 
     const response = await POST(
@@ -78,22 +74,21 @@ describe("POST /api/ai/regenerate", () => {
       }),
     );
 
-    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(response.headers.get("content-type")).toContain("application/json");
+    const json = await response.json();
 
-    const content = await response.text();
-
-    expect(content).toContain('"type":"start"');
-    expect(content).toContain('"type":"body_delta"');
-    expect(content).toContain('"chunk":"Refined "');
-    expect(content).toContain('"type":"final"');
-    expect(content).toContain('"subject":"Refined subject"');
-    expect(content).toContain('"body":"Refined body"');
+    expect(json.ok).toBe(true);
+    expect(json.data).toMatchObject({
+      recipientId: "recipient_1",
+      subject: "Refined subject",
+      body: "Refined body",
+      reasoning: "Tightened the opener.",
+    });
     expect(dispatchRegenerate).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: "anthropic",
         apiKey: "sk-ant-test",
         model: "claude-3-5-sonnet-latest",
-        onBodyDelta: expect.any(Function),
         prompt: expect.stringContaining(DEFAULT_REGENERATE_PROMPT),
       }),
     );
@@ -138,7 +133,7 @@ describe("POST /api/ai/regenerate", () => {
       }),
     );
 
-    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(response.headers.get("content-type")).toContain("application/json");
     expect(dispatchRegenerate).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining(`User regeneration prompt: ${customPrompt}`),

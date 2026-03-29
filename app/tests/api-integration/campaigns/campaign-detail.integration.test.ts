@@ -492,8 +492,6 @@ describe("GET /api/campaigns/[id] - Integration Tests", () => {
       });
 
       campaign.recipients[0].isRegenerating = true;
-      campaign.recipients[0].regenerationPhase = "streaming";
-      campaign.recipients[0].streamOriginalBody = "Original body before regeneration";
 
       await saveCampaignRun({
         userId,
@@ -510,8 +508,6 @@ describe("GET /api/campaigns/[id] - Integration Tests", () => {
 
       const recipient = json.data.campaign.recipients[0];
       expect(recipient.isRegenerating).toBeUndefined();
-      expect(recipient.regenerationPhase).toBeUndefined();
-      expect(recipient.streamOriginalBody).toBeUndefined();
     });
   });
 });

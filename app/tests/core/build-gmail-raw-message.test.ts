@@ -4,8 +4,8 @@ import { buildGmailRawMessage } from "@/core/email/build-gmail-raw-message";
 import type { Attachment } from "@/types/gmail";
 
 describe("buildGmailRawMessage", () => {
-  it("builds a Gmail-compatible MIME message without attachments", () => {
-    const raw = buildGmailRawMessage({
+  it("builds a Gmail-compatible MIME message without attachments", async () => {
+    const raw = await buildGmailRawMessage({
       bodyHtml: "<p>Hello world</p>",
       bodyText: "Hello world",
       fromEmail: "sender@example.com",
@@ -25,7 +25,7 @@ describe("buildGmailRawMessage", () => {
     expect(decoded).toContain(Buffer.from("<p>Hello world</p>", "utf8").toString("base64"));
   });
 
-  it("builds a Gmail-compatible MIME message with a single attachment", () => {
+  it("builds a Gmail-compatible MIME message with a single attachment", async () => {
     const attachment: Attachment = {
       filename: "test.pdf",
       contentType: "application/pdf",
@@ -33,7 +33,7 @@ describe("buildGmailRawMessage", () => {
       size: 17,
     };
 
-    const raw = buildGmailRawMessage({
+    const raw = await buildGmailRawMessage({
       bodyHtml: "<p>Hello world</p>",
       bodyText: "Hello world",
       fromEmail: "sender@example.com",
@@ -53,7 +53,7 @@ describe("buildGmailRawMessage", () => {
     expect(decoded).toContain("dGVzdCBmaWxlIGNvbnRlbnQ=");
   });
 
-  it("builds a Gmail-compatible MIME message with multiple attachments", () => {
+  it("builds a Gmail-compatible MIME message with multiple attachments", async () => {
     const attachments: Attachment[] = [
       {
         filename: "test.pdf",
@@ -69,7 +69,7 @@ describe("buildGmailRawMessage", () => {
       },
     ];
 
-    const raw = buildGmailRawMessage({
+    const raw = await buildGmailRawMessage({
       bodyHtml: "<p>Hello world</p>",
       bodyText: "Hello world",
       fromEmail: "sender@example.com",
@@ -87,8 +87,8 @@ describe("buildGmailRawMessage", () => {
     expect(decoded).toContain("Content-Type: image/png");
   });
 
-  it("maintains backward compatibility when no attachments are provided", () => {
-    const raw = buildGmailRawMessage({
+  it("maintains backward compatibility when no attachments are provided", async () => {
+    const raw = await buildGmailRawMessage({
       bodyHtml: "<p>HTML body</p>",
       bodyText: "Text body",
       fromEmail: "test@example.com",
@@ -104,14 +104,14 @@ describe("buildGmailRawMessage", () => {
     expect(decoded).not.toContain("multipart/mixed");
   });
 
-  it("properly encodes attachment data with base64", () => {
+  it("properly encodes attachment data with base64", async () => {
     const attachment: Attachment = {
       filename: "document.txt",
       contentType: "text/plain",
       data: "SGVsbG8sIHRoaXMgaXMgYSB0ZXN0IGRvY3VtZW50IQ==", // Pre-base64 encoded "Hello, this is a test document!"
     };
 
-    const raw = buildGmailRawMessage({
+    const raw = await buildGmailRawMessage({
       bodyHtml: "<p>Email body</p>",
       bodyText: "Email body",
       fromEmail: "sender@example.com",
@@ -124,5 +124,31 @@ describe("buildGmailRawMessage", () => {
 
     // Check that attachment data is present (not double-encoded)
     expect(decoded).toContain("SGVsbG8sIHRoaXMgaXMgYSB0ZXN0IGRvY3VtZW50IQ==");
+  });
+
+  it("builds multipart/related html for inline images", async () => {
+    const inlineImage: Attachment = {
+      filename: "demo.png",
+      contentType: "image/png",
+      data: Buffer.from("PNG image").toString("base64"),
+      isInline: true,
+      contentId: "img_demo_123",
+    };
+
+    const raw = await buildGmailRawMessage({
+      bodyHtml:
+        '<p>Intro</p><p><img src="cid:img_demo_123" data-content-id="img_demo_123" data-filename="demo.png" /></p><p>Outro</p>',
+      bodyText: "Intro\n\n[Image: demo.png]\n\nOutro",
+      fromEmail: "sender@example.com",
+      subject: "Inline image",
+      toEmail: "recipient@example.com",
+      attachments: [inlineImage],
+    });
+
+    const decoded = Buffer.from(raw, "base64url").toString("utf8");
+
+    expect(decoded).toContain("Content-Type: multipart/related;");
+    expect(decoded).toContain("Content-ID: <img_demo_123>");
+    expect(decoded).toContain('Content-Disposition: inline; filename="demo.png"');
   });
 });

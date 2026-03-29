@@ -199,8 +199,8 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
     });
   });
 
-  describe("Happy Path - Streaming AI Generation", () => {
-    it("streams AI-generated email successfully", async () => {
+  describe("Happy Path - REST AI Generation", () => {
+    it("returns AI-generated email successfully", async () => {
       mockAuthenticatedUser({ email: "sender@example.com" });
 
       const generatedBody = "This is the AI-generated email body.";
@@ -229,51 +229,23 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
       const response = await POST(request);
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("Content-Type")).toBe("text/event-stream; charset=utf-8");
-      expect(response.headers.get("Cache-Control")).toBe("no-cache, no-transform");
-      expect(response.headers.get("X-Accel-Buffering")).toBe("no");
+      expect(response.headers.get("Content-Type")).toContain("application/json");
+      const json = await response.json();
 
-      // Read the stream
-      const streamText = await response.text();
-      const events = streamText
-        .split("\n\n")
-        .filter((line) => line.trim().length > 0)
-        .map((event) => {
-          const match = event.match(/data: (.+)/);
-          return match ? JSON.parse(match[1]) : null;
-        })
-        .filter((e) => e !== null);
-
-      // Verify SSE events
-      expect(events.length).toBeGreaterThanOrEqual(2);
-      expect(events[0].type).toBe("start");
-      expect(events[0].recipientId).toBe("recipient_123");
-
-      const finalEvent = events[events.length - 1];
-      expect(finalEvent.type).toBe("final");
-      expect(finalEvent.subject).toBe("Generated Subject");
-      expect(finalEvent.body).toBe(generatedBody);
-      expect(finalEvent.recipientId).toBe("recipient_123");
+      expect(json.ok).toBe(true);
+      expect(json.data).toMatchObject({
+        recipientId: "recipient_123",
+        subject: "Generated Subject",
+        body: generatedBody,
+        reasoning: "Regenerated based on recipient profile",
+      });
     });
 
-    it("streams with body delta events during generation", async () => {
+    it("returns generated email body without streaming deltas", async () => {
       mockAuthenticatedUser({ email: "sender@example.com" });
-
-      let onBodyDeltaCallback: ((chunk: string) => void) | null = null;
-
-      mockDispatchRegenerate.mockImplementationOnce(async ({ onBodyDelta }) => {
-        onBodyDeltaCallback = onBodyDelta;
-
-        // Simulate streaming chunks
-        onBodyDelta?.("Hello ");
-        onBodyDelta?.("{{name}}, ");
-        onBodyDelta?.("this is ");
-        onBodyDelta?.("a test.");
-
-        return {
-          subject: "Test Subject",
-          body: "Hello {{name}}, this is a test.",
-        };
+      mockDispatchRegenerate.mockResolvedValueOnce({
+        subject: "Test Subject",
+        body: "Hello {{name}}, this is a test.",
       });
 
       const request = new Request("http://localhost/api/ai/regenerate", {
@@ -284,22 +256,12 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
       const response = await POST(request);
 
       expect(response.status).toBe(200);
-
-      // Read the stream
-      const streamText = await response.text();
-      const events = streamText
-        .split("\n\n")
-        .filter((line) => line.trim().length > 0)
-        .map((event) => {
-          const match = event.match(/data: (.+)/);
-          return match ? JSON.parse(match[1]) : null;
-        })
-        .filter((e) => e !== null);
-
-      // Verify we have body_delta events
-      const bodyDeltaEvents = events.filter((e) => e.type === "body_delta");
-      expect(bodyDeltaEvents.length).toBeGreaterThan(0);
-      expect(bodyDeltaEvents.every((e: any) => e.recipientId)).toBeTruthy();
+      const json = await response.json();
+      expect(json.ok).toBe(true);
+      expect(json.data).toMatchObject({
+        subject: "Test Subject",
+        body: "Hello {{name}}, this is a test.",
+      });
     });
 
     it("includes reasoning in final event when provided by AI", async () => {
@@ -321,20 +283,9 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
       const response = await POST(request);
 
       expect(response.status).toBe(200);
-
-      // Read the stream
-      const streamText = await response.text();
-      const events = streamText
-        .split("\n\n")
-        .filter((line) => line.trim().length > 0)
-        .map((event) => {
-          const match = event.match(/data: (.+)/);
-          return match ? JSON.parse(match[1]) : null;
-        })
-        .filter((e) => e !== null);
-
-      const finalEvent = events[events.length - 1];
-      expect(finalEvent.reasoning).toBe(reasoningText);
+      const json = await response.json();
+      expect(json.ok).toBe(true);
+      expect(json.data?.reasoning).toBe(reasoningText);
     });
   });
 
@@ -469,26 +420,10 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
 
       const response = await POST(request);
 
-      expect(response.status).toBe(200);
-      expect(response.headers.get("Content-Type")).toBe("text/event-stream; charset=utf-8");
-
-      // Read the stream
-      const streamText = await response.text();
-      const events = streamText
-        .split("\n\n")
-        .filter((line) => line.trim().length > 0)
-        .map((event) => {
-          const match = event.match(/data: (.+)/);
-          return match ? JSON.parse(match[1]) : null;
-        })
-        .filter((e) => e !== null);
-
-      // Should have start event and error event
-      expect(events[0].type).toBe("start");
-
-      const errorEvent = events.find((e: any) => e.type === "error");
-      expect(errorEvent).toBeDefined();
-      expect(errorEvent.error).toContain("AI service unavailable");
+      expect(response.status).toBe(500);
+      const json = await response.json();
+      expect(json.ok).toBe(false);
+      expect(json.error).toContain("AI service unavailable");
     });
 
     it("handles API key errors", async () => {
@@ -503,11 +438,10 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
 
       const response = await POST(request);
 
-      expect(response.status).toBe(200);
-
-      const streamText = await response.text();
-      expect(streamText).toContain("type");
-      expect(streamText).toContain("error");
+      expect(response.status).toBe(500);
+      const json = await response.json();
+      expect(json.ok).toBe(false);
+      expect(json.error).toContain("Invalid API key");
     });
 
     it("handles rate limiting errors", async () => {
@@ -522,20 +456,10 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
 
       const response = await POST(request);
 
-      expect(response.status).toBe(200);
-
-      const streamText = await response.text();
-      const events = streamText
-        .split("\n\n")
-        .filter((line) => line.trim().length > 0)
-        .map((event) => {
-          const match = event.match(/data: (.+)/);
-          return match ? JSON.parse(match[1]) : null;
-        })
-        .filter((e) => e !== null);
-
-      const errorEvent = events.find((e: any) => e.type === "error");
-      expect(errorEvent?.error).toContain("Rate limit exceeded");
+      expect(response.status).toBe(500);
+      const json = await response.json();
+      expect(json.ok).toBe(false);
+      expect(json.error).toContain("Rate limit exceeded");
     });
 
     it("handles timeout errors", async () => {
@@ -550,20 +474,10 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
 
       const response = await POST(request);
 
-      expect(response.status).toBe(200);
-
-      const streamText = await response.text();
-      const events = streamText
-        .split("\n\n")
-        .filter((line) => line.trim().length > 0)
-        .map((event) => {
-          const match = event.match(/data: (.+)/);
-          return match ? JSON.parse(match[1]) : null;
-        })
-        .filter((e) => e !== null);
-
-      const errorEvent = events.find((e: any) => e.type === "error");
-      expect(errorEvent?.error).toContain("Request timeout");
+      expect(response.status).toBe(500);
+      const json = await response.json();
+      expect(json.ok).toBe(false);
+      expect(json.error).toContain("Request timeout");
     });
   });
 
@@ -666,8 +580,8 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
 
       expect(response.status).toBe(200);
 
-      const streamText = await response.text();
-      expect(streamText).toContain("quotes");
+      const json = await response.json();
+      expect(json.data?.body).toContain("quotes");
     });
 
     it("handles very long generated body", async () => {
@@ -689,8 +603,8 @@ describe("POST /api/ai/regenerate - Integration Tests", () => {
 
       expect(response.status).toBe(200);
 
-      const streamText = await response.text();
-      expect(streamText).toContain(longBody.substring(0, 100));
+      const json = await response.json();
+      expect(json.data?.body).toContain(longBody.substring(0, 100));
     });
   });
 });

@@ -6,6 +6,7 @@ export interface RecipientCardToolbarProps {
   status: SendStatus;
   sent: boolean;
   onCheckedChange: (checked: boolean) => void;
+  onPreview: () => void;
   onRegenerate: () => void;
   isRegenerating: boolean;
 }

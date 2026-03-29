@@ -44,7 +44,6 @@ export function buildRecipientDraft(params: {
     bodySource: "global-template",
     manualEditsSinceGenerate: false,
     isRegenerating: false,
-    regenerationPhase: "idle",
     isSending: false,
   };
 }

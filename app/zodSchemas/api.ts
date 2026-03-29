@@ -18,7 +18,33 @@ const attachmentSchema = z.object({
   contentType: z.string().trim().min(1, "Attachment content type is required."),
   data: z.string().trim().min(1, "Attachment data is required."),
   size: z.number().optional(),
-});
+  isInline: z.boolean().optional(),
+  contentId: z.string().optional(),
+}).refine(
+  (data) => {
+    // If isInline is true, must be an image content type
+    if (data.isInline && !data.contentType.startsWith("image/")) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "Only image attachments can be inline.",
+    path: ["isInline"],
+  }
+).refine(
+  (data) => {
+    // If isInline is true, must have contentId
+    if (data.isInline && !data.contentId) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "Inline attachments must have a contentId.",
+    path: ["contentId"],
+  }
+);
 
 const attachmentsSchema = z
   .array(attachmentSchema)
@@ -30,6 +56,8 @@ export const sendRecipientContentSchema = z.object({
   ccEmails: ccEmailsSchema,
   subject: requiredString("Subject is required."),
   body: requiredString("Email body is required."),
+  bodyHtml: z.string().trim().optional(),
+  bodyText: z.string().trim().optional(),
   attachments: attachmentsSchema,
 });
 
@@ -106,6 +134,8 @@ export const testEmailRequestSchema = z.object({
   ccEmails: ccEmailsSchema,
   subject: requiredString("Subject is required."),
   body: requiredString("Email body is required."),
+  bodyHtml: z.string().trim().optional(),
+  bodyText: z.string().trim().optional(),
   attachments: attachmentsSchema,
 });
 

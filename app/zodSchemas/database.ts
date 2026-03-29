@@ -152,8 +152,6 @@ export const saveCampaignHistoryRequestSchema = z.object({
       lastGenerationAt: z.string().optional(),
       manualEditsSinceGenerate: z.boolean(),
       isRegenerating: z.boolean(),
-      regenerationPhase: z.enum(["idle", "streaming", "finalizing"]),
-      streamOriginalBody: z.string().optional(),
       lastGenerationReasoning: z.string().optional(),
       isSending: z.boolean(),
       lastSendAttemptAt: z.string().optional(),

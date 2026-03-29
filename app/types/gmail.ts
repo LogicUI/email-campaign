@@ -3,11 +3,14 @@ export interface Attachment {
   contentType: string;
   data: string; // base64 encoded file data
   size?: number; // in bytes
+  isInline?: boolean; // true if image should be embedded in email body
+  contentId?: string; // unique Content-ID for inline images (e.g., "img_abc123")
 }
 
 export interface BuildGmailRawMessageParams {
   bodyHtml: string;
   bodyText: string;
+  editorJson?: string; // TipTap JSON for rich content (optional, for extracting HTML)
   ccEmails?: string[];
   fromEmail: string;
   subject: string;

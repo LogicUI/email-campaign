@@ -76,4 +76,60 @@
   .app-shell {
     @apply min-h-screen;
   }
+
+  .email-editor .ProseMirror {
+    color: hsl(var(--foreground));
+  }
+
+  .email-editor .ProseMirror p {
+    margin: 0 0 0.9rem;
+    line-height: 1.75;
+  }
+
+  .email-editor .ProseMirror p:last-child {
+    margin-bottom: 0;
+  }
+
+  .email-editor .ProseMirror ul,
+  .email-editor .ProseMirror ol {
+    margin: 0.9rem 0;
+    padding-left: 1.35rem;
+  }
+
+  .email-editor .ProseMirror a {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.16em;
+  }
+
+  .email-editor .ProseMirror h1,
+  .email-editor .ProseMirror h2,
+  .email-editor .ProseMirror h3 {
+    margin: 1.2rem 0 0.65rem;
+    line-height: 1.25;
+    color: hsl(var(--foreground));
+  }
+
+  .email-editor .ProseMirror h1:first-child,
+  .email-editor .ProseMirror h2:first-child,
+  .email-editor .ProseMirror h3:first-child,
+  .email-editor .ProseMirror p:first-child {
+    margin-top: 0;
+  }
+
+  .email-editor .ProseMirror img {
+    margin: 0.75rem 0;
+    border-radius: 0.9rem;
+    border: 1px solid hsl(var(--border) / 0.8);
+    box-shadow: 0 12px 28px -24px rgba(42, 26, 9, 0.55);
+  }
+
+  .email-editor .ProseMirror.ProseMirror-focused {
+    outline: none;
+  }
+
+  .email-editor[data-readonly="true"] .ProseMirror {
+    opacity: 0.78;
+  }
 }

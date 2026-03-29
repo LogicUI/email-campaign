@@ -1,12 +1,12 @@
-import { streamWithOpenAiCompatible } from "@/core/ai/providers/openai-compatible";
-import type { AiStreamDraftParams } from "@/types/ai-provider";
+import { generateWithOpenAiCompatible } from "@/core/ai/providers/openai-compatible";
+import type { AiGenerateDraftParams } from "@/types/ai-provider";
 
 /**
  * Runs regeneration against OpenAI through the shared OpenAI-compatible adapter.
  *
- * @param params Provider request parameters plus streaming callbacks.
+ * @param params Provider request parameters.
  * @returns Parsed provider response containing the final body text.
  */
-export async function generateWithOpenAi(params: AiStreamDraftParams) {
-  return streamWithOpenAiCompatible(params);
+export async function generateWithOpenAi(params: AiGenerateDraftParams) {
+  return generateWithOpenAiCompatible(params);
 }

@@ -2,6 +2,16 @@ import { buildGmailRawMessage } from "@/core/email/build-gmail-raw-message";
 import type { GmailSendResponse, SendGmailMessageParams } from "@/types/gmail";
 
 export async function sendGmailMessage(params: SendGmailMessageParams) {
+  const raw = await buildGmailRawMessage({
+    bodyHtml: params.bodyHtml,
+    bodyText: params.bodyText,
+    ccEmails: params.ccEmails,
+    fromEmail: params.fromEmail,
+    subject: params.subject,
+    toEmail: params.toEmail,
+    attachments: params.attachments,
+  });
+
   const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: {
@@ -9,15 +19,7 @@ export async function sendGmailMessage(params: SendGmailMessageParams) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      raw: buildGmailRawMessage({
-        bodyHtml: params.bodyHtml,
-        bodyText: params.bodyText,
-        ccEmails: params.ccEmails,
-        fromEmail: params.fromEmail,
-        subject: params.subject,
-        toEmail: params.toEmail,
-        attachments: params.attachments,
-      }),
+      raw,
     }),
   });
 

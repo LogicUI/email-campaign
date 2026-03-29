@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Mail, Send, TriangleAlert, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { LoaderCircle, Mail, Send, TriangleAlert, X } from "lucide-react";
 
 import {
   DEFAULT_REGENERATE_PROMPT,
   MAX_REGENERATE_PROMPT_LENGTH,
 } from "@/core/ai/regenerate-guardrails";
+import { fileToAttachment } from "@/core/email/attachment-utils";
+import { buildEmailPreviewModel } from "@/core/email/email-preview";
+import { EmailPreviewSurface } from "@/components/email/email-preview-surface";
 import { useRecipientEditor } from "@/hooks/use-recipient-editor";
 import { useRecipientRegenerate } from "@/hooks/use-recipient-regenerate";
 import { RecipientCardToolbar } from "@/components/recipient/recipient-card-toolbar";
+import { TipTapEmailEditor } from "@/components/email/tiptap-email-editor";
 import { AttachmentUpload } from "@/components/campaign/attachment-upload";
 import { AttachmentList } from "@/components/campaign/attachment-list";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useSendTestEmailMutation } from "@/tanStack/send";
 import type { RecipientEmailCardProps } from "@/types/recipient-email-card";
 
 export function RecipientEmailCard({
@@ -34,7 +39,7 @@ export function RecipientEmailCard({
 }: RecipientEmailCardProps) {
   const {
     onAttachmentsChange,
-    onBodyChange,
+    onBodyChangeWithJson,
     onCcEmailsChange,
     onCheckedChange,
     onEmailChange,
@@ -44,17 +49,33 @@ export function RecipientEmailCard({
   } = useRecipientEditor(recipientId);
   const { error, isRegenerating, regenerate } = useRecipientRegenerate(recipientId);
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [prompt, setPrompt] = useState(DEFAULT_REGENERATE_PROMPT);
   const [attachmentError, setAttachmentError] = useState<string | undefined>();
   const [ccEmailsString, setCcEmailsString] = useState(() =>
     recipient.ccEmails?.join(", ") ?? ""
   );
+  const [testEmailAddress, setTestEmailAddress] = useState(senderEmail);
+  const [testEmailSuccess, setTestEmailSuccess] = useState<string | null>(null);
+  const testEmailMutation = useSendTestEmailMutation();
 
   useEffect(() => {
     if (!regenerateDialogOpen) {
       setPrompt(DEFAULT_REGENERATE_PROMPT);
     }
   }, [regenerateDialogOpen]);
+
+  useEffect(() => {
+    if (previewDialogOpen) {
+      setTestEmailAddress(senderEmail);
+      setTestEmailSuccess(null);
+    }
+  }, [previewDialogOpen, senderEmail]);
+
+  const previewModel = useMemo(
+    () => buildEmailPreviewModel(recipient?.body ?? "", recipient?.attachments ?? []),
+    [recipient?.attachments, recipient?.body],
+  );
 
   if (!recipient) {
     return null;
@@ -155,6 +176,7 @@ export function RecipientEmailCard({
           sent={recipient.sent}
           isRegenerating={isRegenerating}
           onCheckedChange={onCheckedChange}
+          onPreview={() => setPreviewDialogOpen(true)}
           onRegenerate={() => setRegenerateDialogOpen(true)}
         />
       </CardHeader>
@@ -189,12 +211,41 @@ export function RecipientEmailCard({
         </div>
         <div className="space-y-2">
           <Label htmlFor={`body-${recipient.id}`}>Body</Label>
-          <Textarea
-            id={`body-${recipient.id}`}
-            value={recipient.body}
-            onChange={(event) => onBodyChange(event.target.value)}
+          <TipTapEmailEditor
+            content={recipient.body}
+            editorJson={recipient.bodyEditorJson}
+            onChange={(html, json) => {
+              onBodyChangeWithJson(html, json);
+            }}
+            attachments={recipient.attachments ?? []}
+            onAttachmentsChange={onAttachmentsChange}
+            availablePlaceholders={Object.keys(recipient.fields)}
+            onInsertPlaceholder={(placeholder) => {
+              console.log("Inserted placeholder:", placeholder);
+            }}
+            onUploadImage={async (file) => {
+              const attachment = await fileToAttachment(file);
+              attachment.isInline = true;
+
+              // Generate content ID for inline image
+              const { generateContentId } = await import("@/core/email/attachment-utils");
+              attachment.contentId = await generateContentId(file.name);
+
+              // Add to attachments
+              const currentAttachments = recipient.attachments ?? [];
+              onAttachmentsChange([...currentAttachments, attachment]);
+            }}
             className="min-h-[240px]"
             disabled={recipient.isSending || recipient.isRegenerating}
+            loadingState={
+              recipient.isRegenerating
+                ? {
+                    title: "Regenerating draft",
+                    detail: "Review is temporarily locked while AI rewrites this email.",
+                  }
+                : undefined
+            }
+            id={`body-${recipient.id}`}
           />
         </div>
         {error || recipient.errorMessage ? (
@@ -239,8 +290,8 @@ export function RecipientEmailCard({
               Cancel
             </Button>
             <Button
-              onClick={async () => {
-                const result = await regenerate(prompt);
+              onClick={() => {
+                const result = regenerate(prompt);
 
                 if (result === "started") {
                   setRegenerateDialogOpen(false);
@@ -249,6 +300,102 @@ export function RecipientEmailCard({
               disabled={!prompt.trim() || isRegenerating}
             >
               {isRegenerating ? "Generating..." : "Regenerate email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+        <DialogContent className="sm:max-w-[720px] p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Preview and test email</DialogTitle>
+            <DialogDescription>
+              This preview uses the same HTML body and attachment data that the send flow uses.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor={`preview-subject-${recipient.id}`}>Subject</Label>
+                <Input
+                  id={`preview-subject-${recipient.id}`}
+                  value={recipient.subject}
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`test-email-${recipient.id}`}>Send test to</Label>
+                <Input
+                  id={`test-email-${recipient.id}`}
+                  type="email"
+                  value={testEmailAddress}
+                  onChange={(event) => {
+                    setTestEmailAddress(event.target.value);
+                    setTestEmailSuccess(null);
+                  }}
+                  disabled={testEmailMutation.isPending}
+                />
+              </div>
+            </div>
+
+            <EmailPreviewSurface
+              subject={recipient.subject}
+              toEmail={recipient.email || "recipient@example.com"}
+              fromEmail={senderEmail}
+              ccEmails={recipient.ccEmails}
+              previewHtml={previewModel.previewHtml}
+              fileAttachments={previewModel.fileAttachments}
+              inlineAttachmentsCount={previewModel.inlineAttachments.length}
+            />
+
+            {testEmailSuccess ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {testEmailSuccess}
+              </div>
+            ) : null}
+
+            {testEmailMutation.error instanceof Error ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {testEmailMutation.error.message}
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPreviewDialogOpen(false)}
+              disabled={testEmailMutation.isPending}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={async () => {
+                const response = await testEmailMutation.mutateAsync({
+                  to: testEmailAddress,
+                  subject: recipient.subject,
+                  body: previewModel.bodyText,
+                  bodyHtml: previewModel.bodyHtml,
+                  bodyText: previewModel.bodyText,
+                  ccEmails: recipient.ccEmails,
+                  attachments: recipient.attachments ?? [],
+                });
+
+                setTestEmailSuccess(
+                  `Sent a test email to ${testEmailAddress}. Provider message ID: ${response.providerMessageId}.`,
+                );
+              }}
+              disabled={!testEmailAddress.trim() || testEmailMutation.isPending}
+            >
+              {testEmailMutation.isPending ? (
+                <>
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  Sending test...
+                </>
+              ) : (
+                "Send test email"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -68,19 +68,14 @@ describe("POST /api/ai/regenerate-global-template", () => {
     );
 
     expect(response.status).toBe(200);
-    const streamText = await response.text();
-    const events = streamText
-      .split("\n\n")
-      .filter((line) => line.trim().length > 0)
-      .map((event) => {
-        const match = event.match(/data: (.+)/);
-        return match ? JSON.parse(match[1]) : null;
-      })
-      .filter((e) => e !== null);
-
-    const finalEvent = events[events.length - 1];
-    expect(finalEvent.type).toBe("done");
-    expect(finalEvent.data.body).toBe("Hi {{clinic_name}},\n\nHere is a refreshed template body.");
+    expect(response.headers.get("content-type")).toContain("application/json");
+    const json = await response.json();
+    expect(json.ok).toBe(true);
+    expect(json.data).toMatchObject({
+      subject: "Fresh intro for {{clinic_name}}",
+      body: "Hi {{clinic_name}},\n\nHere is a refreshed template body.",
+      reasoning: "Tightened the body.",
+    });
 
     expect(dispatchRegenerate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -124,19 +119,10 @@ describe("POST /api/ai/regenerate-global-template", () => {
     );
 
     expect(response.status).toBe(200);
-    const streamText = await response.text();
-    const events = streamText
-      .split("\n\n")
-      .filter((line) => line.trim().length > 0)
-      .map((event) => {
-        const match = event.match(/data: (.+)/);
-        return match ? JSON.parse(match[1]) : null;
-      })
-      .filter((e) => e !== null);
-
-    const finalEvent = events[events.length - 1];
-    expect(finalEvent.type).toBe("done");
-    expect(finalEvent.data.body).toBe("Updated body");
+    expect(response.headers.get("content-type")).toContain("application/json");
+    const json = await response.json();
+    expect(json.ok).toBe(true);
+    expect(json.data?.body).toBe("Updated body");
 
     expect(dispatchRegenerate).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { validateRecipient } from "@/core/campaign/validate-recipient";
+import { isHtmlContent, renderTextFromHtml } from "@/core/email/render-email";
 import { createId } from "@/core/utils/ids";
 import { useCampaignSync } from "@/hooks/use-campaign-sync";
 import { useCampaignStore } from "@/store/campaign-store";
@@ -93,6 +94,10 @@ export function useBulkSend(options?: {
         email: recipient.email,
         subject: recipient.subject,
         body: recipient.body,
+        bodyHtml: isHtmlContent(recipient.body) ? recipient.body : undefined,
+        bodyText: isHtmlContent(recipient.body)
+          ? renderTextFromHtml(recipient.body)
+          : recipient.body,
         ccEmails: recipient.ccEmails,
         attachments,
       };

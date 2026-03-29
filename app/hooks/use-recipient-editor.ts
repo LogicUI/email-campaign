@@ -11,6 +11,7 @@ export function useRecipientEditor(recipientId: string) {
   const removeRecipient = useCampaignStore((state) => state.removeRecipient);
   const updateRecipientEmail = useCampaignStore((state) => state.updateRecipientEmail);
   const updateRecipientBody = useCampaignStore((state) => state.updateRecipientBody);
+  const updateRecipientBodyWithJson = useCampaignStore((state) => state.updateRecipientBodyWithJson);
   const updateRecipientSubject = useCampaignStore((state) => state.updateRecipientSubject);
   const updateRecipientCcEmails = useCampaignStore((state) => state.updateRecipientCcEmails);
   const updateRecipientAttachments = useCampaignStore((state) => state.updateRecipientAttachments);
@@ -21,6 +22,7 @@ export function useRecipientEditor(recipientId: string) {
       onRemove: () => removeRecipient(recipientId),
       onEmailChange: (email: string) => updateRecipientEmail(recipientId, email),
       onBodyChange: (body: string) => updateRecipientBody(recipientId, body),
+      onBodyChangeWithJson: (body: string, bodyEditorJson?: string) => updateRecipientBodyWithJson(recipientId, body, bodyEditorJson),
       onSubjectChange: (subject: string) => updateRecipientSubject(recipientId, subject),
       onCcEmailsChange: (ccEmails: string[]) => updateRecipientCcEmails(recipientId, ccEmails),
       onAttachmentsChange: (attachments: CampaignRecipient["attachments"]) => updateRecipientAttachments(recipientId, attachments),
@@ -31,6 +33,7 @@ export function useRecipientEditor(recipientId: string) {
       removeRecipient,
       toggleRecipientChecked,
       updateRecipientBody,
+      updateRecipientBodyWithJson,
       updateRecipientCcEmails,
       updateRecipientEmail,
       updateRecipientSubject,

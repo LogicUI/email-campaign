@@ -1,6 +1,42 @@
 import type { Attachment } from "@/types/gmail";
 
 /**
+ * Generates a UUID v4 using Web Crypto API (client-side compatible).
+ */
+async function generateUUID(): Promise<string> {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  // Fallback for older browsers
+  if (typeof crypto !== "undefined") {
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    array[6] = (array[6]! & 0x0f) | 0x40; // Version 4
+    array[8] = (array[8]! & 0x3f) | 0x80; // Variant 10
+
+    const hex = Array.from(array)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    return [
+      hex.substring(0, 8),
+      hex.substring(8, 12),
+      hex.substring(12, 16),
+      hex.substring(16, 20),
+      hex.substring(20, 32),
+    ].join("-");
+  }
+
+  // Last resort fallback (Math.random-based, not cryptographically secure)
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * Gets the file extension from a filename.
  */
 function extname(filename: string): string {
@@ -101,15 +137,47 @@ export function getMimeType(filename: string): string {
  * Removes path separators, control characters, and special characters
  * that could cause issues on different operating systems.
  *
+ * IMPORTANT: Preserves the file extension (last dot) to ensure proper
+ * MIME type detection and image display in email clients.
+ *
  * @param filename The original filename.
  * @returns A sanitized filename safe for use in email headers.
  */
 export function sanitizeFilename(filename: string): string {
-  return filename
+  // Extract the file extension (last dot)
+  const lastDotIndex = filename.lastIndexOf(".");
+
+  let namePart: string;
+  let extensionPart: string;
+
+  if (lastDotIndex > 0 && lastDotIndex < filename.length - 1) {
+    // Has extension: "image.jpg" → namePart="image", extensionPart=".jpg"
+    namePart = filename.substring(0, lastDotIndex);
+    extensionPart = filename.substring(lastDotIndex);
+  } else {
+    // No extension or hidden file: use entire filename
+    namePart = filename;
+    extensionPart = "";
+  }
+
+  // Sanitize only the name part (preserve extension as-is)
+  let sanitizedName = namePart
     .replace(/[\/\\]/g, "_") // Remove path separators
+    .replace(/\s+/g, "_") // Replace spaces with underscores (for email compatibility)
     .replace(/[\x00-\x1F\x7F]/g, "") // Remove control characters
-    .replace(/[<>:"|?*]/g, "_") // Remove Windows-invalid characters
-    .substring(0, 255); // Limit length
+    .replace(/[<>:"|?*]/g, "_") // Remove Windows-invalid characters (replace each char)
+    .substring(0, 255 - extensionPart.length); // Limit length (account for extension)
+
+  // Remove trailing dots from the name part (not extension, not underscores/spaces)
+  // This handles "file." → "file" but preserves "file_name"
+  sanitizedName = sanitizedName.replace(/\.+$/, "");
+
+  // Handle edge case: only dots in filename (e.g., "...") → return as-is
+  if (namePart.match(/^\.+$/) && extensionPart === "") {
+    return filename;
+  }
+
+  return sanitizedName + extensionPart;
 }
 
 /**
@@ -278,4 +346,33 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
     data: base64Data,
     size: file.size,
   };
+}
+
+/**
+ * Checks if an attachment is an image based on its MIME type.
+ *
+ * @param attachment The attachment to check.
+ * @returns true if the attachment is an image, false otherwise.
+ */
+export function isImageAttachment(attachment: Attachment): boolean {
+  return attachment.contentType.startsWith("image/");
+}
+
+/**
+ * Generates a unique Content-ID for inline images.
+ *
+ * Content-IDs are used in email to reference inline images via the cid: URL scheme.
+ * Each inline image needs a unique Content-ID within the email.
+ *
+ * @param filename Optional filename to include in the Content-ID for debugging.
+ * @returns A unique Content-ID string (e.g., "img_abc123def456").
+ */
+export async function generateContentId(filename?: string): Promise<string> {
+  const uuid = await generateUUID();
+  const uuidWithoutDashes = uuid.replaceAll("-", "");
+  // Include first 8 chars of sanitized filename for debugging (optional)
+  const sanitized = filename
+    ? sanitizeFilename(filename).substring(0, 8).replaceAll(/[^a-zA-Z0-9]/g, "")
+    : "";
+  return `img_${sanitized}${uuidWithoutDashes}`;
 }

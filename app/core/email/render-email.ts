@@ -1,3 +1,5 @@
+const HTML_TAG_REGEX = /<\/?[a-z][\s\S]*>/i;
+
 /**
  * Escapes HTML-sensitive characters in plain text email content.
  *
@@ -31,4 +33,42 @@ export function renderHtmlFromText(text: string) {
       ${withBreaks}
     </div>
   `;
+}
+
+export function isHtmlContent(value: string) {
+  return HTML_TAG_REGEX.test(value);
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replaceAll("&nbsp;", " ")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'");
+}
+
+/**
+ * Builds a readable plain-text fallback from editor HTML.
+ *
+ * This is used for the text/plain MIME part when the authoring surface is rich HTML.
+ */
+export function renderTextFromHtml(value: string) {
+  if (!isHtmlContent(value)) {
+    return value;
+  }
+
+  const text = value
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<img\b[^>]*alt="([^"]*)"[^>]*>/gi, "\n[Image: $1]\n")
+    .replace(/<img\b[^>]*>/gi, "\n[Image]\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|section|article|blockquote|h[1-6]|ul|ol|li)>/gi, "\n")
+    .replace(/<li\b[^>]*>/gi, "- ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n{3,}/g, "\n\n");
+
+  return decodeHtmlEntities(text).trim();
 }

@@ -46,49 +46,30 @@ export interface GlobalTemplateRegenerateResponse {
   ok: boolean;
   code?: ApiErrorCode;
   data?: {
-    subject: string;
+    subject?: string;
     body: string;
     reasoning?: string;
   };
   error?: string;
 }
 
-export interface RegenerateStreamStartEvent {
-  type: "start";
-  recipientId: string;
-}
-
-export interface RegenerateStreamBodyDeltaEvent {
-  type: "body_delta";
-  recipientId: string;
-  chunk: string;
-}
-
-export interface RegenerateStreamFinalEvent {
-  type: "final";
-  recipientId: string;
-  body: string;
-  subject?: string;
-  reasoning?: string;
-}
-
-export interface RegenerateStreamErrorEvent {
-  type: "error";
-  recipientId: string;
-  error: string;
-}
-
-export type RegenerateStreamEvent =
-  | RegenerateStreamStartEvent
-  | RegenerateStreamBodyDeltaEvent
-  | RegenerateStreamFinalEvent
-  | RegenerateStreamErrorEvent;
-
 export interface SendPayloadRecipient {
   id: string;
   email: string;
   subject: string;
   body: string;
+  bodyHtml?: string;
+  bodyText?: string;
+  ccEmails?: string[];
+  attachments?: Attachment[];
+}
+
+export interface TestEmailRequest {
+  to: string;
+  subject: string;
+  body: string;
+  bodyHtml?: string;
+  bodyText?: string;
   ccEmails?: string[];
   attachments?: Attachment[];
 }

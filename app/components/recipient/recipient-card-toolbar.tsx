@@ -1,4 +1,4 @@
-import { LoaderCircle, RefreshCw } from "lucide-react";
+import { Eye, LoaderCircle, RefreshCw } from "lucide-react";
 
 import type { SendStatus } from "@/types/campaign";
 
@@ -38,6 +38,7 @@ export function RecipientCardToolbar(props: RecipientCardToolbarProps) {
     disabled,
     isRegenerating,
     onCheckedChange,
+    onPreview,
     onRegenerate,
     sent,
     status,
@@ -67,16 +68,28 @@ export function RecipientCardToolbar(props: RecipientCardToolbarProps) {
           {getStatusLabel(status)}
         </Badge>
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={onRegenerate}
-        disabled={isRegenerating}
-      >
-        <RefreshCw className={isRegenerating ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-        {isRegenerating ? "Generating..." : "Regenerate with prompt"}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onPreview}
+          disabled={disabled}
+        >
+          <Eye className="h-4 w-4" />
+          Preview & test
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onRegenerate}
+          disabled={isRegenerating}
+        >
+          <RefreshCw className={isRegenerating ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          {isRegenerating ? "Generating..." : "Regenerate with prompt"}
+        </Button>
+      </div>
     </div>
   );
 }

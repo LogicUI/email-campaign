@@ -7,16 +7,12 @@ export interface AiGenerateDraftParams {
   systemInstruction: string;
 }
 
-export interface AiStreamDraftParams extends AiGenerateDraftParams {
-  onBodyDelta: (chunk: string) => void | Promise<void>;
-}
-
 export interface AiProviderParsedResponse {
   body: string;
   reasoning?: string;
   subject?: string;
 }
 
-export interface DispatchRegenerateParams extends AiStreamDraftParams {
+export interface DispatchRegenerateParams extends AiGenerateDraftParams {
   provider: LlmProvider;
 }

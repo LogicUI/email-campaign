@@ -72,6 +72,34 @@ beforeAll(async () => {
   });
 
   HTMLElement.prototype.scrollIntoView = vi.fn();
+
+  // Mock DOMRect methods for ProseMirror/TipTap in tests
+  const emptyRect = {
+    bottom: 0,
+    height: 0,
+    left: 0,
+    right: 0,
+    top: 0,
+    width: 0,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  };
+
+  // Create a proper DOMRectList mock
+  const createDOMRectList = (rects: typeof emptyRect[]) => ({
+    ...rects,
+    length: rects.length,
+    item: (index: number) => rects[index] || null,
+  });
+
+  Element.prototype.getClientRects = vi.fn(() => createDOMRectList([]));
+  Element.prototype.getBoundingClientRect = vi.fn(() => emptyRect);
+  Range.prototype.getClientRects = vi.fn(() => createDOMRectList([]));
+  Range.prototype.getBoundingClientRect = vi.fn(() => emptyRect);
+
+  // Mock elementFromPoint for ProseMirror/TipTap in tests
+  document.elementFromPoint = vi.fn(() => null);
 });
 
 beforeEach(() => {

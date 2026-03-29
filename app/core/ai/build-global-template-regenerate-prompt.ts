@@ -17,6 +17,8 @@ export function buildGlobalTemplateRegeneratePrompt(
     "Treat the user prompt as rewrite guidance for the campaign-wide template only.",
     "Preserve valid {{placeholder}} tokens and do not invent new placeholder names outside the allowed list when one is provided.",
     "Keep the tone concise, personalized, and ready to send.",
+    "Format the result like a polished email template: greeting first, then short paragraphs separated by blank lines, then a clean sign-off.",
+    "Do not collapse the whole message into one dense block.",
     "Return only the email body text.",
     "Do not return JSON, labels, subject lines, reasoning, markdown, or code fences.",
     `Rewrite mode: ${body.mode ?? "refresh"}`,

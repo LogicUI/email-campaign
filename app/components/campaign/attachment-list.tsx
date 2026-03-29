@@ -6,12 +6,15 @@ import {
   FileText,
   FileSpreadsheet,
   Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { calculateAttachmentSizeInfo } from "./attachment-validation";
 import {
   formatBytes,
+  isImageAttachment,
   MAX_ATTACHMENTS_PER_EMAIL,
 } from "@/core/email/attachment-utils";
 import type { Attachment } from "@/types/gmail";
@@ -19,6 +22,7 @@ import type { Attachment } from "@/types/gmail";
 interface AttachmentListProps {
   attachments: Attachment[];
   onRemove: (index: number) => void;
+  onToggleInline?: (index: number, isInline: boolean) => void;
 }
 
 /**
@@ -102,10 +106,11 @@ function AttachmentSizeIndicator({
  * - File icons based on MIME type
  * - Filename
  * - File size in human-readable format
+ * - Inline toggle for image attachments
  * - Remove button for each attachment
  * - Size usage indicator with progress bar
  */
-export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
+export function AttachmentList({ attachments, onRemove, onToggleInline }: AttachmentListProps) {
   if (attachments.length === 0) {
     return null;
   }
@@ -116,6 +121,8 @@ export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
       <div className="space-y-1.5">
         {attachments.map((attachment, index) => {
           const FileIcon = getFileIcon(attachment.contentType);
+          const isImage = isImageAttachment(attachment);
+          const isInline = attachment.isInline || false;
 
           return (
             <div
@@ -129,13 +136,42 @@ export function AttachmentList({ attachments, onRemove }: AttachmentListProps) {
 
               {/* File info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" title={attachment.filename}>
-                  {attachment.filename}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium truncate" title={attachment.filename}>
+                    {attachment.filename}
+                  </p>
+                  {isInline && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                      inline
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {attachment.size ? formatBytes(attachment.size) : "Unknown size"}
                 </p>
               </div>
+
+              {/* Inline toggle (only for images) */}
+              {isImage && onToggleInline && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-col items-end gap-1">
+                    <label
+                      htmlFor={`inline-toggle-${index}`}
+                      className="text-xs text-muted-foreground cursor-pointer"
+                    >
+                      Inline in body
+                    </label>
+                    <Checkbox
+                      id={`inline-toggle-${index}`}
+                      checked={isInline}
+                      onCheckedChange={(checked) =>
+                        onToggleInline(index, checked === true)
+                      }
+                      className="h-4 w-4"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Remove button */}
               <Button

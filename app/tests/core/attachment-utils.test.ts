@@ -58,6 +58,47 @@ describe("attachment-utils", () => {
     it("handles empty strings", () => {
       expect(sanitizeFilename("")).toBe("");
     });
+
+    it("preserves file extensions (CRITICAL for image display)", () => {
+      // Basic extensions
+      expect(sanitizeFilename("my photo.jpg")).toBe("my_photo.jpg");
+      expect(sanitizeFilename("document.pdf")).toBe("document.pdf");
+      expect(sanitizeFilename("image.png")).toBe("image.png");
+      expect(sanitizeFilename("archive.tar.gz")).toBe("archive.tar.gz"); // Preserves last extension
+    });
+
+    it("handles filenames with spaces and special characters", () => {
+      expect(sanitizeFilename("my image file.jpg")).toBe("my_image_file.jpg");
+      expect(sanitizeFilename("report (final).pdf")).toBe("report_(final).pdf"); // Parentheses are valid
+    });
+
+    it("handles hidden files and dotfiles", () => {
+      expect(sanitizeFilename(".hidden")).toBe(".hidden");
+      expect(sanitizeFilename(".gitignore")).toBe(".gitignore");
+    });
+
+    it("handles files without extensions", () => {
+      expect(sanitizeFilename("README")).toBe("README");
+      expect(sanitizeFilename("my file")).toBe("my_file");
+    });
+
+    it("handles multiple dots correctly", () => {
+      // Only the last dot should be preserved as the extension separator
+      // Dots in the name part are preserved (they're valid in modern systems)
+      expect(sanitizeFilename("my.file.name.jpg")).toBe("my.file.name.jpg");
+      expect(sanitizeFilename("archive.tar.gz")).toBe("archive.tar.gz"); // .gz is the extension
+    });
+
+    it("handles edge cases with dots", () => {
+      // File starting with dot (hidden file)
+      expect(sanitizeFilename(".config.json")).toBe(".config.json");
+
+      // File with dot at the end (no extension)
+      expect(sanitizeFilename("file.")).toBe("file");
+
+      // File with only dots
+      expect(sanitizeFilename("...")).toBe("...");
+    });
   });
 
   describe("isAllowedExtension", () => {
