@@ -91,7 +91,6 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
   const [ccEmailsString, setCcEmailsString] = useState(campaign?.globalCcEmails?.join(", ") ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>(campaign?.globalAttachments ?? []);
   const [attachmentError, setAttachmentError] = useState<string | undefined>();
-  const [applyMode, setApplyMode] = useState<"untouched" | "all">("untouched");
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [selectedPreviewRowId, setSelectedPreviewRowId] = useState("");
@@ -319,19 +318,10 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
             </div>
 
             {campaign ? (
-              <div className="space-y-2">
-                <Label htmlFor="apply-mode">Apply changes to drafts</Label>
-                <Select
-                  id="apply-mode"
-                  value={applyMode}
-                  onChange={(event) =>
-                    setApplyMode(event.target.value as "untouched" | "all")
-                  }
-                >
-                  <option value="untouched">Only untouched drafts</option>
-                  <option value="all">Overwrite all drafts</option>
-                </Select>
-              </div>
+              <p className="rounded-xl border border-border/70 bg-muted/35 px-4 py-3 text-sm text-muted-foreground">
+                Saving the global message refreshes every unsent recipient draft so the
+                queue stays aligned with the latest template.
+              </p>
             ) : null}
           </div>
 
@@ -348,7 +338,6 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
                   globalBodyEditorJson: bodyEditorJson,
                   globalCcEmails,
                   globalAttachments: attachments,
-                  applyMode,
                 })
               }
               disabled={!subject.trim() || !body.trim() || (!campaign && !name.trim())}

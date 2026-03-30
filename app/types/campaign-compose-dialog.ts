@@ -8,7 +8,6 @@ export interface CampaignComposeDialogSubmitPayload {
   globalBodyEditorJson?: string; // TipTap JSON for rich text editing
   globalCcEmails?: string[];
   globalAttachments?: Attachment[];
-  applyMode: "untouched" | "all";
 }
 
 export interface CampaignComposeDialogProps {

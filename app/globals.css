@@ -125,6 +125,48 @@
     box-shadow: 0 12px 28px -24px rgba(42, 26, 9, 0.55);
   }
 
+  .email-editor .email-inline-image-node {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    margin: 0.75rem 0;
+  }
+
+  .email-editor .email-inline-image-node__image {
+    display: block;
+    max-width: 100%;
+    border-radius: 0.9rem;
+    border: 1px solid hsl(var(--border) / 0.8);
+    box-shadow: 0 12px 28px -24px rgba(42, 26, 9, 0.55);
+  }
+
+  .email-editor .email-inline-image-node__handle {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 9999px;
+    border: 2px solid hsl(var(--background));
+    background: hsl(var(--primary));
+    box-shadow: 0 6px 16px -10px rgba(42, 26, 9, 0.7);
+    cursor: nwse-resize;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .email-editor .email-inline-image-node:hover .email-inline-image-node__handle,
+  .email-editor .email-inline-image-node.ProseMirror-selectednode .email-inline-image-node__handle,
+  .email-editor .email-inline-image-node.is-resizing .email-inline-image-node__handle {
+    opacity: 1;
+  }
+
+  .email-editor .email-inline-image-node.ProseMirror-selectednode .email-inline-image-node__image,
+  .email-editor .email-inline-image-node.is-resizing .email-inline-image-node__image {
+    outline: 2px solid hsl(var(--primary) / 0.25);
+    outline-offset: 4px;
+  }
+
   .email-editor .ProseMirror.ProseMirror-focused {
     outline: none;
   }

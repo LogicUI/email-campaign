@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useRef, useState } from "react";
+import { TriangleAlert } from "lucide-react";
 
 import { useBulkSend } from "@/hooks/use-bulk-send";
 import { useCampaignBuilder } from "@/hooks/use-campaign-builder";
@@ -18,6 +19,8 @@ import { FileUploadDropzone } from "@/components/data-import/file-upload-dropzon
 import { RecipientList } from "@/components/recipient/recipient-list";
 import { RecipientPaginationBar } from "@/components/recipient/recipient-pagination-bar";
 import { RecipientStatusTabs } from "@/components/recipient/recipient-status-tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { useDatabaseSessionStore } from "@/store/database-session-store";
 import type { CampaignBuilderPageProps } from "@/types/campaign-builder-page";
 
@@ -72,6 +75,9 @@ export function CampaignBuilderPage({
   const ui = useCampaignStore(selectUi);
   const recipientOrder = useCampaignStore(selectRecipientOrder);
   const recipientsById = useCampaignStore(selectRecipientsById);
+  const dismissRestoredDraftWarning = useCampaignStore(
+    (state) => state.dismissRestoredDraftWarning,
+  );
   const setImportPreview = useCampaignStore((state) => state.setImportPreview);
   const toggleRecipientsChecked = useCampaignStore((state) => state.toggleRecipientsChecked);
   const saveImportMutation = useSaveDatabaseImportMutation();
@@ -258,6 +264,30 @@ export function CampaignBuilderPage({
     <section className="app-shell" aria-label="Campaign workspace">
       <div className="container py-6 md:py-10">
         <div className="mx-auto flex max-w-7xl flex-col gap-6">
+          {ui.restoredDraftWarning ? (
+            <Alert className="border-amber-300 bg-amber-50 text-amber-950">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 gap-3">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <AlertTitle>Inline images need to be re-added</AlertTitle>
+                    <AlertDescription className="text-amber-900/80">
+                      {ui.restoredDraftWarning}
+                    </AlertDescription>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-amber-900 hover:bg-amber-100 hover:text-amber-950"
+                  onClick={dismissRestoredDraftWarning}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </Alert>
+          ) : null}
           {hasActiveSession ? (
             <CampaignActionBar
               hasCampaign={Boolean(campaign)}
@@ -480,7 +510,7 @@ export function CampaignBuilderPage({
         preview={preview}
         senderEmail={senderEmail}
         onClose={closeComposeDialog}
-        onSubmit={({ applyMode, globalBodyTemplate, globalBodyEditorJson, globalSubject, globalCcEmails, globalAttachments, name }) => {
+        onSubmit={({ globalBodyTemplate, globalBodyEditorJson, globalSubject, globalCcEmails, globalAttachments, name }) => {
           if (campaign) {
             updateGlobalTemplate({
               globalBodyTemplate,
@@ -488,7 +518,6 @@ export function CampaignBuilderPage({
               globalSubject,
               globalCcEmails,
               globalAttachments,
-              applyMode,
             });
             closeComposeDialog();
             return;

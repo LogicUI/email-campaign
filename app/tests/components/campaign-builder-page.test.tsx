@@ -636,9 +636,12 @@ describe("CampaignBuilderPage", () => {
     seedCampaign();
     const recipientId = useCampaignStore.getState().recipientOrder[0];
     vi.mocked(sendTestEmail).mockClear();
+    useCampaignStore
+      .getState()
+      .updateRecipientSubject(recipientId, "Helping {{clinic_name}} reduce no-shows");
     useCampaignStore.getState().updateRecipientBodyWithJson(
       recipientId,
-      '<p><strong>Hello</strong> North Clinic</p><p><img src="cid:img_demo_123" data-content-id="img_demo_123" data-filename="demo.png" /></p>',
+      '<p><strong>Hello</strong> <span data-field-name="clinic_name">{{clinic_name}}</span></p><p><img src="cid:img_demo_123" data-content-id="img_demo_123" data-filename="demo.png" /></p>',
       undefined,
     );
     useCampaignStore.getState().updateRecipientAttachments(recipientId, [
@@ -682,11 +685,61 @@ describe("CampaignBuilderPage", () => {
       const payload = vi.mocked(sendTestEmail).mock.calls[0]?.[0];
       expect(payload).toMatchObject({
         subject: "Helping North Clinic reduce no-shows",
-        bodyHtml: expect.stringContaining("cid:img_demo_123"),
+        bodyHtml: expect.stringContaining("North Clinic"),
+        bodyText: expect.stringContaining("North Clinic"),
         attachments: expect.arrayContaining([
           expect.objectContaining({ filename: "overview.pdf" }),
         ]),
       });
+      expect(payload?.bodyHtml).toContain("cid:img_demo_123");
+      expect(payload?.bodyHtml).not.toContain("{{clinic_name}}");
+    });
+  });
+
+  it("resolves recipient placeholders before bulk send", async () => {
+    const user = userEvent.setup();
+    seedCampaign();
+    const recipientId = useCampaignStore.getState().recipientOrder[0];
+    vi.mocked(sendBulk).mockClear();
+    vi.mocked(sendBulk).mockResolvedValueOnce({
+      sendJobId: "sendjob_mocked",
+      results: [
+        {
+          recipientId,
+          status: "sent",
+          providerMessageId: "gmail_mocked_1",
+        },
+        {
+          recipientId: useCampaignStore.getState().recipientOrder[1],
+          status: "sent",
+          providerMessageId: "gmail_mocked_2",
+        },
+      ],
+    });
+    useCampaignStore
+      .getState()
+      .updateRecipientSubject(recipientId, "Helping {{clinic_name}} reduce no-shows");
+    useCampaignStore.getState().updateRecipientBodyWithJson(
+      recipientId,
+      '<p>Hello <span data-field-name="clinic_name">{{clinic_name}}</span></p>',
+      undefined,
+    );
+
+    renderCampaignBuilderPage();
+
+    await user.click(screen.getByRole("button", { name: "Send selected" }));
+
+    await waitFor(() => {
+      const payload = vi.mocked(sendBulk).mock.calls[0]?.[0];
+      const firstRecipient = payload?.recipients[0];
+
+      expect(firstRecipient).toMatchObject({
+        subject: "Helping North Clinic reduce no-shows",
+        body: expect.stringContaining("North Clinic"),
+        bodyHtml: expect.stringContaining("North Clinic"),
+        bodyText: expect.stringContaining("North Clinic"),
+      });
+      expect(firstRecipient?.bodyHtml).not.toContain("{{clinic_name}}");
     });
   });
 
@@ -1043,5 +1096,34 @@ describe("CampaignBuilderPage", () => {
     expect(persistedStore.state.ui.recipientStatusView).toBe("sent");
     expect(persistedStore.state.recipientsById[sentRecipientId].sent).toBe(true);
     expect(persistedStore.state.recipientsById[unsentRecipientId].sent).toBe(false);
+  });
+
+  it("shows and dismisses the restored draft warning when inline images were stripped", async () => {
+    seedCampaign();
+    useCampaignStore.setState((state) => ({
+      ui: {
+        ...state.ui,
+        restoredDraftWarning:
+          "Text edits were restored, but inline images are not stored in the browser and need to be uploaded again.",
+      },
+    }));
+
+    const user = userEvent.setup();
+    renderCampaignBuilderPage();
+
+    expect(
+      screen.getByText("Inline images need to be re-added"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Text edits were restored, but inline images are not stored in the browser/i,
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(
+      screen.queryByText("Inline images need to be re-added"),
+    ).not.toBeInTheDocument();
   });
 });

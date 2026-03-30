@@ -54,4 +54,35 @@ describe("email preview", () => {
     expect(result.body).toContain("1 Main St");
     expect(result.previewHtml).toContain("North Clinic");
   });
+
+  it("resolves placeholder spans inside html content for preview and send", () => {
+    const result = buildTemplatedEmailPreviewModel({
+      subject: "Hello {{clinic_name}}",
+      body: '<p>Hello <span data-field-name="clinic_name">{{clinic_name}}</span></p>',
+      attachments: [],
+      fields: {
+        clinic_name: "North Clinic",
+      },
+    });
+
+    expect(result.subject).toBe("Hello North Clinic");
+    expect(result.bodyHtml).toContain("North Clinic");
+    expect(result.bodyHtml).not.toContain("{{clinic_name}}");
+    expect(result.bodyHtml).not.toContain("data-field-name");
+    expect(result.previewHtml).toContain("North Clinic");
+    expect(result.previewHtml).not.toContain("data-field-name");
+  });
+
+  it("strips legacy placeholder highlight styling from preview html", () => {
+    const result = buildEmailPreviewModel(
+      '<p>Hello <span data-field-name="clinic_view" class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-700">{{clinic_view}}</span></p>',
+      [],
+    );
+
+    expect(result.previewHtml).toContain(
+      '<span data-field-name="clinic_view">{{clinic_view}}</span>',
+    );
+    expect(result.previewHtml).not.toContain("bg-blue-100");
+    expect(result.previewHtml).not.toContain("text-blue-700");
+  });
 });

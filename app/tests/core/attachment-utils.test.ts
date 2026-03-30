@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   fileToAttachment,
   formatBytes,
+  getInlineImageDisplayDimensions,
   getMimeType,
+  prepareInlineImageAttachment,
   isAllowedExtension,
   isValidAttachmentCount,
   isValidAttachmentSize,
@@ -274,6 +276,85 @@ describe("attachment-utils", () => {
       expect(formatBytes(1024 * 1024)).toBe("1 MB");
       expect(formatBytes(1536)).toBe("1.5 KB");
       expect(formatBytes(1024 * 1024 * 1.5)).toBe("1.5 MB");
+    });
+  });
+
+  describe("fileToAttachment", () => {
+    it("keeps optional optimization metadata when provided", async () => {
+      const file = {
+        name: "photo.jpg",
+        size: 5,
+        arrayBuffer: async () => Buffer.from("hello"),
+      } as unknown as File;
+
+      const attachment = await fileToAttachment(file, {
+        originalSize: 4096,
+        imageDimensions: {
+          width: 1200,
+          height: 800,
+        },
+      });
+
+      expect(attachment.originalSize).toBe(4096);
+      expect(attachment.width).toBe(1200);
+      expect(attachment.height).toBe(800);
+    });
+  });
+
+  describe("prepareInlineImageAttachment", () => {
+    it("falls back to the original file when optimization decoding fails", async () => {
+      const originalCreateObjectURL = URL.createObjectURL;
+      const file = {
+        name: "fallback.jpg",
+        type: "image/jpeg",
+        size: 5,
+        arrayBuffer: async () => Buffer.from("hello"),
+      } as unknown as File;
+
+      try {
+        vi.stubGlobal(
+          "createImageBitmap",
+          vi.fn().mockRejectedValue(new Error("decode failed")),
+        );
+        URL.createObjectURL = vi.fn(() => {
+          throw new Error("bad image");
+        });
+
+        const result = await prepareInlineImageAttachment(file);
+
+        expect(result.warning).toContain("could not be optimized");
+        expect(result.attachment.filename).toBe("fallback.jpg");
+        expect(result.attachment.size).toBe(5);
+      } finally {
+        URL.createObjectURL = originalCreateObjectURL;
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
+  describe("getInlineImageDisplayDimensions", () => {
+    it("caps large images to the default editor display width", () => {
+      expect(
+        getInlineImageDisplayDimensions({
+          width: 1600,
+          height: 1200,
+        }),
+      ).toEqual({
+        width: 640,
+        height: 480,
+      });
+    });
+
+    it("leaves smaller images at their intrinsic size", () => {
+      expect(
+        getInlineImageDisplayDimensions({
+          width: 320,
+          height: 200,
+        }),
+      ).toEqual({
+        width: 320,
+        height: 200,
+      });
     });
   });
 });

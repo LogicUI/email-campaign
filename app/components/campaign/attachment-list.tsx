@@ -147,7 +147,14 @@ export function AttachmentList({ attachments, onRemove, onToggleInline }: Attach
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {attachment.size ? formatBytes(attachment.size) : "Unknown size"}
+                  {attachment.size
+                    ? attachment.originalSize &&
+                      attachment.originalSize > attachment.size
+                      ? `${formatBytes(attachment.size)} optimized from ${formatBytes(
+                          attachment.originalSize,
+                        )}`
+                      : formatBytes(attachment.size)
+                    : "Unknown size"}
                 </p>
               </div>
 

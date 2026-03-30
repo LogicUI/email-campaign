@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { validateRecipient } from "@/core/campaign/validate-recipient";
-import { isHtmlContent, renderTextFromHtml } from "@/core/email/render-email";
+import { buildTemplatedEmailPreviewModel } from "@/core/email/email-preview";
 import { createId } from "@/core/utils/ids";
 import { useCampaignSync } from "@/hooks/use-campaign-sync";
 import { useCampaignStore } from "@/store/campaign-store";
@@ -88,16 +88,20 @@ export function useBulkSend(options?: {
       const attachments = recipient.attachments && recipient.attachments.length > 0
         ? recipient.attachments
         : campaign?.globalAttachments;
+      const resolvedEmail = buildTemplatedEmailPreviewModel({
+        subject: recipient.subject,
+        body: recipient.body,
+        attachments: attachments ?? [],
+        fields: recipient.fields,
+      });
 
       return {
         id: recipient.id,
         email: recipient.email,
-        subject: recipient.subject,
-        body: recipient.body,
-        bodyHtml: isHtmlContent(recipient.body) ? recipient.body : undefined,
-        bodyText: isHtmlContent(recipient.body)
-          ? renderTextFromHtml(recipient.body)
-          : recipient.body,
+        subject: resolvedEmail.subject,
+        body: resolvedEmail.body,
+        bodyHtml: resolvedEmail.bodyHtml,
+        bodyText: resolvedEmail.bodyText,
         ccEmails: recipient.ccEmails,
         attachments,
       };

@@ -3,6 +3,9 @@ export interface Attachment {
   contentType: string;
   data: string; // base64 encoded file data
   size?: number; // in bytes
+  originalSize?: number; // pre-optimization size in bytes
+  width?: number; // intrinsic image width in pixels
+  height?: number; // intrinsic image height in pixels
   isInline?: boolean; // true if image should be embedded in email body
   contentId?: string; // unique Content-ID for inline images (e.g., "img_abc123")
 }

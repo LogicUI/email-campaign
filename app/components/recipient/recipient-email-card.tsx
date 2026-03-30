@@ -8,7 +8,7 @@ import {
   MAX_REGENERATE_PROMPT_LENGTH,
 } from "@/core/ai/regenerate-guardrails";
 import { fileToAttachment } from "@/core/email/attachment-utils";
-import { buildEmailPreviewModel } from "@/core/email/email-preview";
+import { buildTemplatedEmailPreviewModel } from "@/core/email/email-preview";
 import { EmailPreviewSurface } from "@/components/email/email-preview-surface";
 import { useRecipientEditor } from "@/hooks/use-recipient-editor";
 import { useRecipientRegenerate } from "@/hooks/use-recipient-regenerate";
@@ -73,8 +73,14 @@ export function RecipientEmailCard({
   }, [previewDialogOpen, senderEmail]);
 
   const previewModel = useMemo(
-    () => buildEmailPreviewModel(recipient?.body ?? "", recipient?.attachments ?? []),
-    [recipient?.attachments, recipient?.body],
+    () =>
+      buildTemplatedEmailPreviewModel({
+        subject: recipient?.subject ?? "",
+        body: recipient?.body ?? "",
+        attachments: recipient?.attachments ?? [],
+        fields: recipient?.fields,
+      }),
+    [recipient?.attachments, recipient?.body, recipient?.fields, recipient?.subject],
   );
 
   if (!recipient) {
@@ -320,7 +326,7 @@ export function RecipientEmailCard({
                 <Label htmlFor={`preview-subject-${recipient.id}`}>Subject</Label>
                 <Input
                   id={`preview-subject-${recipient.id}`}
-                  value={recipient.subject}
+                  value={previewModel.subject}
                   disabled
                 />
               </div>
@@ -340,7 +346,7 @@ export function RecipientEmailCard({
             </div>
 
             <EmailPreviewSurface
-              subject={recipient.subject}
+              subject={previewModel.subject}
               toEmail={recipient.email || "recipient@example.com"}
               fromEmail={senderEmail}
               ccEmails={recipient.ccEmails}
@@ -374,7 +380,7 @@ export function RecipientEmailCard({
               onClick={async () => {
                 const response = await testEmailMutation.mutateAsync({
                   to: testEmailAddress,
-                  subject: recipient.subject,
+                  subject: previewModel.subject,
                   body: previewModel.bodyText,
                   bodyHtml: previewModel.bodyHtml,
                   bodyText: previewModel.bodyText,

@@ -5,6 +5,8 @@ import type { Attachment } from "@/types/gmail";
 
 const HTML_TAG_REGEX = /<\/?[a-z][\s\S]*>/i;
 const IMAGE_TAG_REGEX = /<img\b([^>]*?)\/?>/gi;
+const FIELD_PLACEHOLDER_SPAN_REGEX =
+  /<span\b([^>]*\bdata-field-name=(?:"[^"]*"|'[^']*')[^>]*)>([\s\S]*?)<\/span>/gi;
 const ATTRIBUTE_REGEX = /([:\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 
 export interface PreparedEmailEditorContent {
@@ -81,6 +83,23 @@ function rewriteImageTags(
     const serializedAttributes = serializeAttributes(nextAttributes);
 
     return serializedAttributes ? `<img ${serializedAttributes} />` : match;
+  });
+}
+
+function normalizeFieldPlaceholderSpans(html: string) {
+  return html.replace(FIELD_PLACEHOLDER_SPAN_REGEX, (match, rawAttributes, innerHtml) => {
+    const attributes = parseAttributes(rawAttributes);
+    const fieldName = attributes["data-field-name"];
+
+    if (!fieldName) {
+      return match;
+    }
+
+    if (innerHtml.trim() !== `{{${fieldName}}}`) {
+      return innerHtml;
+    }
+
+    return `<span data-field-name="${fieldName}">${innerHtml}</span>`;
   });
 }
 
@@ -167,7 +186,7 @@ function buildEditorPreviewHtml(html: string, attachments: Attachment[]) {
 
 export function buildEmailPreviewHtml(content: string, attachments: Attachment[]) {
   const htmlContent = looksLikeHtml(content)
-    ? serializeEmailEditorHtml(content)
+    ? normalizeFieldPlaceholderSpans(serializeEmailEditorHtml(content))
     : migrateLegacyContent(content, attachments);
 
   return buildEditorPreviewHtml(htmlContent, attachments);
@@ -227,8 +246,13 @@ export function prepareEmailEditorContent(params: {
   const recoveredBodyJson = parseTipTapDocument(content);
   const shouldNormalizePlainText =
     content.trim().length > 0 && !looksLikeHtml(content) && !recoveredBodyJson;
+  const normalizedHtmlContent = looksLikeHtml(content)
+    ? normalizeFieldPlaceholderSpans(content)
+    : content;
   const shouldPersistNormalization =
-    Boolean(recoveredBodyJson) || shouldNormalizePlainText;
+    Boolean(recoveredBodyJson) ||
+    shouldNormalizePlainText ||
+    normalizedHtmlContent !== content;
 
   if (parsedEditorJson) {
     const displayContent = applyPreviewSourcesToJson(parsedEditorJson, attachments);
@@ -253,7 +277,7 @@ export function prepareEmailEditorContent(params: {
   }
 
   const htmlContent = looksLikeHtml(content)
-    ? content
+    ? normalizedHtmlContent
     : migrateLegacyContent(content, attachments);
   const displayContent = buildEditorPreviewHtml(htmlContent, attachments);
 

@@ -120,6 +120,16 @@ export const MAX_ATTACHMENT_SIZE = 18 * 1024 * 1024;
  */
 export const MAX_ATTACHMENTS_PER_EMAIL = 10;
 
+const INLINE_IMAGE_MAX_DIMENSION = 1200;
+const INLINE_IMAGE_TARGET_BYTES = 350 * 1024;
+const INLINE_IMAGE_MIN_DIMENSION = 320;
+const INLINE_IMAGE_INITIAL_DISPLAY_WIDTH = 640;
+
+export interface InlineImageAttachmentResult {
+  attachment: Attachment;
+  warning?: string;
+}
+
 /**
  * Gets the MIME type for a file based on its extension.
  *
@@ -325,6 +335,296 @@ export function formatBytes(bytes: number): string {
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
 }
 
+function replaceFilenameExtension(filename: string, extension: string) {
+  const dotIndex = filename.lastIndexOf(".");
+
+  if (dotIndex === -1) {
+    return `${filename}${extension}`;
+  }
+
+  return `${filename.slice(0, dotIndex)}${extension}`;
+}
+
+async function blobToBase64(blob: Blob) {
+  const arrayBuffer = await blob.arrayBuffer();
+  return Buffer.from(arrayBuffer).toString("base64");
+}
+
+async function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  mimeType: string,
+  quality?: number,
+) {
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+
+        reject(new Error("Image optimization failed while encoding the canvas."));
+      },
+      mimeType,
+      quality,
+    );
+  });
+}
+
+async function loadBrowserImage(file: File) {
+  return await new Promise<HTMLImageElement>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error(`Unable to read image "${file.name}".`));
+    };
+
+    image.src = objectUrl;
+  });
+}
+
+async function loadBrowserImageSource(file: File): Promise<{
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+  dispose?: () => void;
+}> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file);
+
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        dispose: () => bitmap.close(),
+      };
+    } catch {
+      // Fall through to the Image-based decoder for broader compatibility.
+    }
+  }
+
+  const image = await loadBrowserImage(file);
+
+  return {
+    source: image,
+    width: image.naturalWidth || image.width,
+    height: image.naturalHeight || image.height,
+  };
+}
+
+function detectCanvasTransparency(canvas: HTMLCanvasElement) {
+  const sampleCanvas = document.createElement("canvas");
+  const sampleContext = sampleCanvas.getContext("2d");
+
+  if (!sampleContext) {
+    return false;
+  }
+
+  sampleCanvas.width = Math.min(64, canvas.width);
+  sampleCanvas.height = Math.min(64, canvas.height);
+  sampleContext.drawImage(canvas, 0, 0, sampleCanvas.width, sampleCanvas.height);
+  const { data } = sampleContext.getImageData(
+    0,
+    0,
+    sampleCanvas.width,
+    sampleCanvas.height,
+  );
+
+  for (let index = 3; index < data.length; index += 4) {
+    if (data[index] < 250) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getScaledImageDimensions(width: number, height: number, scale: number) {
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+function drawImageToCanvas(
+  image: CanvasImageSource,
+  width: number,
+  height: number,
+) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Image optimization failed because the browser canvas is unavailable.");
+  }
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, 0, 0, width, height);
+
+  return canvas;
+}
+
+async function optimizeInlineImageFile(file: File): Promise<Attachment> {
+  if (
+    typeof window === "undefined" ||
+    !file.type.startsWith("image/") ||
+    file.type === "image/gif" ||
+    file.type === "image/svg+xml"
+  ) {
+    return fileToAttachment(file);
+  }
+
+  const loadedImage = await loadBrowserImageSource(file);
+  const originalWidth = loadedImage.width;
+  const originalHeight = loadedImage.height;
+
+  try {
+    if (!originalWidth || !originalHeight) {
+      return fileToAttachment(file);
+    }
+
+    const maxDimensionScale = Math.min(
+      1,
+      INLINE_IMAGE_MAX_DIMENSION / Math.max(originalWidth, originalHeight),
+    );
+
+    let scale = maxDimensionScale;
+    let quality = 0.82;
+    let bestBlob: Blob | null = null;
+    let bestWidth = originalWidth;
+    let bestHeight = originalHeight;
+
+    while (scale > 0) {
+      const { width, height } = getScaledImageDimensions(
+        originalWidth,
+        originalHeight,
+        scale,
+      );
+      const canvas = drawImageToCanvas(loadedImage.source, width, height);
+      const hasTransparency =
+        file.type === "image/png" || file.type === "image/webp"
+          ? detectCanvasTransparency(canvas)
+          : false;
+      const outputType = hasTransparency ? "image/png" : "image/jpeg";
+      const blob = await canvasToBlob(
+        canvas,
+        outputType,
+        outputType === "image/jpeg" ? quality : undefined,
+      );
+
+      if (!bestBlob || blob.size < bestBlob.size) {
+        bestBlob = blob;
+        bestWidth = width;
+        bestHeight = height;
+      }
+
+      if (blob.size <= INLINE_IMAGE_TARGET_BYTES) {
+        bestBlob = blob;
+        bestWidth = width;
+        bestHeight = height;
+        break;
+      }
+
+      if (outputType === "image/jpeg" && quality > 0.62) {
+        quality -= 0.08;
+        continue;
+      }
+
+      if (
+        width <= INLINE_IMAGE_MIN_DIMENSION ||
+        height <= INLINE_IMAGE_MIN_DIMENSION
+      ) {
+        break;
+      }
+
+      scale *= 0.85;
+    }
+
+    if (!bestBlob) {
+      return fileToAttachment(file);
+    }
+
+    if (bestBlob.size >= file.size && scale === maxDimensionScale) {
+      return fileToAttachment(file, {
+        imageDimensions: {
+          width: originalWidth,
+          height: originalHeight,
+        },
+      });
+    }
+
+    const optimizedType = bestBlob.type || file.type;
+    const optimizedFilename =
+      optimizedType === file.type
+        ? file.name
+        : replaceFilenameExtension(
+            file.name,
+            optimizedType === "image/png" ? ".png" : ".jpg",
+          );
+
+    return {
+      filename: sanitizeFilename(optimizedFilename),
+      contentType: optimizedType,
+      data: await blobToBase64(bestBlob),
+      size: bestBlob.size,
+      originalSize: file.size > bestBlob.size ? file.size : undefined,
+      width: bestWidth,
+      height: bestHeight,
+    };
+  } finally {
+    loadedImage.dispose?.();
+  }
+}
+
+export async function prepareInlineImageAttachment(
+  file: File,
+): Promise<InlineImageAttachmentResult> {
+  try {
+    return {
+      attachment: await optimizeInlineImageFile(file),
+    };
+  } catch (optimizationError) {
+    try {
+      return {
+        attachment: await fileToAttachment(file),
+        warning:
+          optimizationError instanceof Error
+            ? `This image could not be optimized, so the original file was used instead.`
+            : "This image could not be optimized, so the original file was used instead.",
+      };
+    } catch {
+      throw optimizationError;
+    }
+  }
+}
+
+export function getInlineImageDisplayDimensions(
+  attachment: Pick<Attachment, "width" | "height">,
+  maxDisplayWidth = INLINE_IMAGE_INITIAL_DISPLAY_WIDTH,
+) {
+  if (!attachment.width || !attachment.height) {
+    return {};
+  }
+
+  const displayWidth = Math.min(attachment.width, maxDisplayWidth);
+
+  return {
+    width: displayWidth,
+    height: Math.round((attachment.height / attachment.width) * displayWidth),
+  };
+}
+
 /**
  * Converts a file to an attachment object.
  *
@@ -335,7 +635,16 @@ export function formatBytes(bytes: number): string {
  * @param file The file object (from a file upload).
  * @returns Promise resolving to an Attachment object.
  */
-export async function fileToAttachment(file: File): Promise<Attachment> {
+export async function fileToAttachment(
+  file: File,
+  options?: {
+    originalSize?: number;
+    imageDimensions?: {
+      width: number;
+      height: number;
+    };
+  },
+): Promise<Attachment> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const base64Data = buffer.toString("base64");
@@ -345,6 +654,9 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
     contentType: getMimeType(file.name),
     data: base64Data,
     size: file.size,
+    originalSize: options?.originalSize,
+    width: options?.imageDimensions?.width,
+    height: options?.imageDimensions?.height,
   };
 }
 

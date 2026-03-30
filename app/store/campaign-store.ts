@@ -12,10 +12,16 @@ import type {
   CampaignStoreUiState,
 } from "@/types/campaign-store";
 import type {
+  Campaign,
   CampaignRecipient,
   GenerationLogItem,
   ImportPreview,
 } from "@/types/campaign";
+
+const INLINE_IMAGE_TAG_REGEX = /<img\b[^>]*\/?>/gi;
+const LEGACY_IMAGE_PLACEHOLDER_REGEX = /\{\{image:[^}]+\}\}/gi;
+const RESTORED_DRAFT_WARNING =
+  "Text edits were restored, but inline images are not stored in the browser and need to be uploaded again.";
 
 const initialUiState: CampaignStoreUiState = {
   composeDialogOpen: false,
@@ -26,6 +32,7 @@ const initialUiState: CampaignStoreUiState = {
   isSending: false,
   isDatabaseSyncing: false,
   needsDatabaseSync: false,
+  persistedInlineMediaRemoved: false,
   sendProgress: {
     total: 0,
     completed: 0,
@@ -33,6 +40,115 @@ const initialUiState: CampaignStoreUiState = {
     failed: 0,
   },
 };
+
+function stripInlineMediaFromContent(content?: string) {
+  if (!content) {
+    return content;
+  }
+
+  return content
+    .replace(INLINE_IMAGE_TAG_REGEX, "")
+    .replace(LEGACY_IMAGE_PLACEHOLDER_REGEX, "");
+}
+
+function contentContainsInlineMedia(content?: string) {
+  if (!content) {
+    return false;
+  }
+
+  return stripInlineMediaFromContent(content) !== content;
+}
+
+function sanitizeCampaignForPersistence(campaign: Campaign | null) {
+  if (!campaign) {
+    return {
+      campaign: campaign ?? undefined,
+      removedInlineMedia: false,
+    };
+  }
+
+  const sanitizedBody = stripInlineMediaFromContent(campaign.globalBodyTemplate);
+  const removedInlineMedia = sanitizedBody !== campaign.globalBodyTemplate;
+
+  return {
+    campaign: {
+      ...campaign,
+      globalBodyTemplate: sanitizedBody ?? campaign.globalBodyTemplate,
+      globalBodyEditorJson: undefined,
+      globalAttachments: undefined,
+    },
+    removedInlineMedia,
+  };
+}
+
+function sanitizeRecipientsForPersistence(
+  recipientsById: Record<string, CampaignRecipient>,
+) {
+  let removedInlineMedia = false;
+
+  const recipients = Object.fromEntries(
+    Object.entries(recipientsById).map(([id, recipient]) => {
+      const sanitizedBody = stripInlineMediaFromContent(recipient.body);
+      const recipientRemovedInlineMedia =
+        sanitizedBody !== recipient.body ||
+        Boolean(
+          recipient.attachments?.some(
+            (attachment) =>
+              attachment.isInline && attachment.contentType.startsWith("image/"),
+          ),
+        );
+
+      if (recipientRemovedInlineMedia) {
+        removedInlineMedia = true;
+      }
+
+      return [
+        id,
+        {
+          ...recipient,
+          body: sanitizedBody ?? recipient.body,
+          bodyEditorJson: undefined,
+          attachments: undefined,
+        },
+      ];
+    }),
+  );
+
+  return {
+    recipients,
+    removedInlineMedia,
+  };
+}
+
+function sanitizePersistedCampaignState(state: Partial<CampaignStore>) {
+  const { campaign, removedInlineMedia: campaignRemovedInlineMedia } =
+    sanitizeCampaignForPersistence(state.campaign ?? null);
+  const { recipients, removedInlineMedia: recipientsRemovedInlineMedia } =
+    sanitizeRecipientsForPersistence(
+      (state.recipientsById ?? {}) as Record<string, CampaignRecipient>,
+    );
+  const persistedInlineMediaRemoved =
+    campaignRemovedInlineMedia || recipientsRemovedInlineMedia;
+
+  return {
+    campaign,
+    importPreview: state.importPreview,
+    recipientsById: recipients,
+    recipientOrder: state.recipientOrder ?? [],
+    generationLogs: state.generationLogs ?? [],
+    ui: {
+      currentPage: state.ui?.currentPage ?? initialUiState.currentPage,
+      pageSize: state.ui?.pageSize ?? initialUiState.pageSize,
+      recipientStatusView:
+        state.ui?.recipientStatusView ?? initialUiState.recipientStatusView,
+      needsDatabaseSync:
+        state.ui?.needsDatabaseSync ?? initialUiState.needsDatabaseSync,
+      lastDatabaseSyncAt: state.ui?.lastDatabaseSyncAt,
+      lastDatabaseSyncError: state.ui?.lastDatabaseSyncError,
+      persistedInlineMediaRemoved,
+    },
+  };
+}
 
 function rebuildImportPreview(
   preview: ImportPreview,
@@ -231,6 +347,8 @@ export const useCampaignStore = create<CampaignStore>()(
               isDatabaseSyncing: false,
               lastDatabaseSyncAt: undefined,
               lastDatabaseSyncError: undefined,
+              persistedInlineMediaRemoved: false,
+              restoredDraftWarning: undefined,
             },
           },
           false,
@@ -238,7 +356,7 @@ export const useCampaignStore = create<CampaignStore>()(
         );
       },
 
-      updateGlobalTemplate: ({ globalSubject, globalBodyTemplate, globalBodyEditorJson, globalCcEmails, globalAttachments, applyMode }) =>
+      updateGlobalTemplate: ({ globalSubject, globalBodyTemplate, globalBodyEditorJson, globalCcEmails, globalAttachments }) =>
         set(
           (state) => {
             if (!state.campaign) {
@@ -247,24 +365,19 @@ export const useCampaignStore = create<CampaignStore>()(
 
             const recipientsById = Object.fromEntries(
               Object.entries(state.recipientsById).map(([id, recipient]) => {
-                const shouldApplyContent =
-                  applyMode === "all" ||
-                  (recipient.bodySource === "global-template" &&
-                    recipient.manualEditsSinceGenerate === false);
-
-                // Always update attachments - they are resources, not content
+                const shouldApplyContent = recipient.sent === false;
                 const updatedRecipient = {
                   ...recipient,
-                  attachments: globalAttachments,
                 };
 
-                // Only update content (subject, body) if apply mode allows
                 if (shouldApplyContent) {
                   updatedRecipient.subject = mergeTemplate(globalSubject, recipient.fields);
                   updatedRecipient.body = mergeTemplate(globalBodyTemplate, recipient.fields);
                   updatedRecipient.bodyEditorJson = undefined;
                   updatedRecipient.ccEmails = globalCcEmails;
+                  updatedRecipient.attachments = globalAttachments;
                   updatedRecipient.bodySource = "global-template" as const;
+                  updatedRecipient.manualEditsSinceGenerate = false;
                 }
 
                 return [id, updatedRecipient];
@@ -845,6 +958,18 @@ export const useCampaignStore = create<CampaignStore>()(
           "campaign/markDatabaseSyncFailed",
         ),
 
+      dismissRestoredDraftWarning: () =>
+        set(
+          (state) => ({
+            ui: {
+              ...state.ui,
+              restoredDraftWarning: undefined,
+            },
+          }),
+          false,
+          "campaign/dismissRestoredDraftWarning",
+        ),
+
       restoreCampaignFromHistory: ({ campaign, recipients }) =>
         set(
           {
@@ -881,46 +1006,41 @@ export const useCampaignStore = create<CampaignStore>()(
     {
       name: "campaign-browser-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 1,
-      partialize: (state) => ({
-        campaign: state.campaign
-          ? {
-              ...state.campaign,
-              // Exclude globalAttachments to avoid localStorage quota issues
-              globalAttachments: undefined,
-            }
-          : undefined,
-        importPreview: state.importPreview,
-        // Exclude attachments from each recipient to avoid localStorage quota issues
-        recipientsById: Object.fromEntries(
-          Object.entries(state.recipientsById).map(([id, recipient]) => [
-            id,
-            {
-              ...recipient,
-              attachments: undefined,
-            },
-          ])
-        ),
-        recipientOrder: state.recipientOrder,
-        generationLogs: state.generationLogs,
-        ui: {
-          currentPage: state.ui.currentPage,
-          pageSize: state.ui.pageSize,
-          recipientStatusView: state.ui.recipientStatusView,
-          needsDatabaseSync: state.ui.needsDatabaseSync,
-          lastDatabaseSyncAt: state.ui.lastDatabaseSyncAt,
-          lastDatabaseSyncError: state.ui.lastDatabaseSyncError,
-        },
-      }),
+      version: 2,
+      partialize: (state) => sanitizePersistedCampaignState(state),
+      migrate: (persistedState) => {
+        const sanitized = sanitizePersistedCampaignState(
+          (persistedState ?? {}) as Partial<CampaignStore>,
+        );
+
+        return {
+          ...sanitized,
+          ui: {
+            ...sanitized.ui,
+            restoredDraftWarning: sanitized.ui.persistedInlineMediaRemoved
+              ? RESTORED_DRAFT_WARNING
+              : undefined,
+          },
+        };
+      },
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as Partial<CampaignStore>;
+        const persisted = sanitizePersistedCampaignState(
+          (persistedState ?? {}) as Partial<CampaignStore>,
+        );
 
         return {
           ...currentState,
-          ...persisted,
+          campaign: persisted.campaign ?? currentState.campaign,
+          importPreview: persisted.importPreview ?? currentState.importPreview,
+          recipientsById: persisted.recipientsById ?? currentState.recipientsById,
+          recipientOrder: persisted.recipientOrder ?? currentState.recipientOrder,
+          generationLogs: persisted.generationLogs ?? currentState.generationLogs,
           ui: {
             ...currentState.ui,
             ...persisted.ui,
+            restoredDraftWarning: persisted.ui.persistedInlineMediaRemoved
+              ? RESTORED_DRAFT_WARNING
+              : undefined,
           },
         };
       },

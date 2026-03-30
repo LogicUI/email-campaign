@@ -45,7 +45,7 @@ export function migrateLegacyContent(
   html = html.replace(
     /\{\{([\w.-]+)\}\}/g,
     (match, fieldName) => {
-      return `<span data-field-name="${fieldName}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-mono text-sm font-medium select-all">{{${fieldName}}}</span>`;
+      return `<span data-field-name="${fieldName}">{{${fieldName}}}</span>`;
     }
   );
 

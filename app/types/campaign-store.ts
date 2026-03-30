@@ -27,6 +27,8 @@ export interface CampaignStoreUiState {
   needsDatabaseSync: boolean;
   lastDatabaseSyncAt?: string;
   lastDatabaseSyncError?: string;
+  persistedInlineMediaRemoved: boolean;
+  restoredDraftWarning?: string;
   sendProgress: CampaignSendProgress;
 }
 
@@ -47,7 +49,6 @@ export interface UpdateGlobalTemplatePayload {
   globalBodyEditorJson?: string;
   globalCcEmails?: string[];
   globalAttachments?: Attachment[];
-  applyMode: "untouched" | "all";
 }
 
 export interface ApplyGeneratedBodyPayload {
@@ -107,6 +108,7 @@ export interface CampaignStoreActions {
   markDatabaseSyncStarted: () => void;
   markDatabaseSyncSucceeded: (syncedAt: string) => void;
   markDatabaseSyncFailed: (errorMessage: string) => void;
+  dismissRestoredDraftWarning: () => void;
   restoreCampaignFromHistory: (payload: {
     campaign: Campaign;
     recipients: CampaignRecipient[];

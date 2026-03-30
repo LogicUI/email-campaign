@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { LoaderCircle, Lock } from "lucide-react";
+import { LoaderCircle, Lock, TriangleAlert } from "lucide-react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
 import Typography from "@tiptap/extension-typography";
@@ -10,7 +10,11 @@ import { FieldPlaceholder } from "./tiptap-extensions/field-placeholder";
 import { InlineImage } from "./tiptap-extensions/inline-image";
 import { EditorToolbar } from "./editor-toolbar";
 import { PlaceholderMenu } from "./placeholder-menu";
-import { fileToAttachment, generateContentId } from "@/core/email/attachment-utils";
+import {
+  generateContentId,
+  getInlineImageDisplayDimensions,
+  prepareInlineImageAttachment,
+} from "@/core/email/attachment-utils";
 import {
   buildInlineImagePreviewSource,
   normalizeHtmlForComparison,
@@ -62,6 +66,8 @@ export function TipTapEmailEditor({
 
   // Track forceUpdate to detect when parent wants to force a refresh
   const [internalForceUpdate, setInternalForceUpdate] = useState(0);
+  const [imageUploadNotice, setImageUploadNotice] = useState<string | undefined>();
+  const [imageUploadError, setImageUploadError] = useState<string | undefined>();
   const busyDescriptionId = useId();
   const normalizationKeyRef = useRef<string | null>(null);
   const preparedContent = useMemo(
@@ -240,6 +246,7 @@ export function TipTapEmailEditor({
           alt: attachment.filename,
           filename: attachment.filename,
           contentId: attachment.contentId,
+          ...getInlineImageDisplayDimensions(attachment),
         },
       })
       .run();
@@ -255,15 +262,27 @@ export function TipTapEmailEditor({
       return;
     }
 
-    const attachment = await fileToAttachment(file);
-    attachment.isInline = true;
-    attachment.contentId = await generateContentId(file.name);
+    setImageUploadError(undefined);
 
-    // Add to attachments
-    const updatedAttachments = [...attachments, attachment];
-    onAttachmentsChange(updatedAttachments);
+    try {
+      const { attachment, warning } = await prepareInlineImageAttachment(file);
+      attachment.isInline = true;
+      attachment.contentId = await generateContentId(attachment.filename);
 
-    await insertImageNode(attachment, targetPosition);
+      setImageUploadNotice(warning);
+
+      // Add to attachments
+      const updatedAttachments = [...attachments, attachment];
+      onAttachmentsChange(updatedAttachments);
+
+      await insertImageNode(attachment, targetPosition);
+    } catch (caughtError) {
+      setImageUploadError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : `Unable to process image "${file.name}".`,
+      );
+    }
   };
 
   // Handle placeholder insertion
@@ -331,6 +350,18 @@ export function TipTapEmailEditor({
         onInsert={handleInsertPlaceholder}
         disabled={disabled}
       />
+      {imageUploadNotice ? (
+        <div className="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <span>{imageUploadNotice}</span>
+        </div>
+      ) : null}
+      {imageUploadError ? (
+        <div className="mx-3 mt-3 flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+          <span>{imageUploadError}</span>
+        </div>
+      ) : null}
       <div className={`relative bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(249,245,238,0.92))] ${disabled ? "pointer-events-none select-none" : ""}`}>
         <EditorContent editor={editor} />
         {loadingState ? (
