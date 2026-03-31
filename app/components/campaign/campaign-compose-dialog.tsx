@@ -273,17 +273,15 @@ export function CampaignComposeDialog(props: CampaignComposeDialogProps) {
                   >
                     Preview & test
                   </Button>
-                  {campaign ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                      onClick={() => setRegenerateDialogOpen(true)}
-                    >
-                      Regenerate with prompt
-                    </Button>
-                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    onClick={() => setRegenerateDialogOpen(true)}
+                  >
+                    Regenerate with prompt
+                  </Button>
                 </div>
               </div>
               <TipTapEmailEditor
