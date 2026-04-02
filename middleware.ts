@@ -5,7 +5,7 @@ import { getToken } from "next-auth/jwt";
 import { getAuthSecret } from "@/core/auth/auth-env";
 import { rateLimitMiddleware, type RateLimitCategory } from "@/api/_lib/rate-limit";
 
-const PUBLIC_PATHS = new Set(["/login"]);
+const PUBLIC_PATHS = new Set(["/login", "/", "/privacy", "/terms"]);
 
 /**
  * Determine rate limit category based on request path.
@@ -57,14 +57,21 @@ export async function middleware(request: NextRequest) {
   // =========================================================================
   const isPublicPath = PUBLIC_PATHS.has(pathname);
 
+  // Redirect authenticated users from landing page to app
+  if (isAuthenticated && pathname === "/") {
+    return NextResponse.redirect(new URL("/app", nextUrl.origin));
+  }
+
+  // Redirect authenticated users from login to app
+  if (isAuthenticated && pathname === "/login") {
+    return NextResponse.redirect(new URL("/app", nextUrl.origin));
+  }
+
+  // Redirect unauthenticated users from protected pages to login
   if (!isAuthenticated && !isPublicPath) {
     const loginUrl = new URL("/login", nextUrl.origin);
     loginUrl.searchParams.set("callbackUrl", `${pathname}${nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
-  }
-
-  if (isAuthenticated && pathname === "/login") {
-    return NextResponse.redirect(new URL("/", nextUrl.origin));
   }
 
   return NextResponse.next();

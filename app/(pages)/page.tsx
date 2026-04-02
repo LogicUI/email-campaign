@@ -1,18 +1,23 @@
-import { HomePageShell } from "@/components/home/home-page-shell";
-import { requirePageSession } from "@/core/auth/session";
-import { getDashboardSummaryForUser } from "@/core/persistence/dashboard-summary";
-import { ensureAppUser } from "@/core/persistence/users-repo";
+import { LandingHero } from "@/components/landing/landing-hero";
+import { LandingFeatures } from "@/components/landing/landing-features";
+import { LandingCapabilities } from "@/components/landing/landing-capabilities";
+import { LandingHowItWorks } from "@/components/landing/landing-how-it-works";
+import { LandingUseCases } from "@/components/landing/landing-use-cases";
+import { LandingExamples } from "@/components/landing/landing-examples";
+import { LandingBenefits } from "@/components/landing/landing-benefits";
+import { LandingCTA } from "@/components/landing/landing-cta";
 
-export default async function HomePage() {
-  const session = await requirePageSession({
-    callbackUrl: "/",
-  });
-
-  const userId = await ensureAppUser({
-    email: session.user.email,
-    authSubject: session.user.id || session.user.email,
-  });
-  const initialSummary = await getDashboardSummaryForUser(userId);
-
-  return <HomePageShell senderEmail={session.user.email} initialSummary={initialSummary} />;
+export default function LandingPage() {
+  return (
+    <>
+      <LandingHero />
+      <LandingFeatures />
+      <LandingCapabilities />
+      <LandingHowItWorks />
+      <LandingUseCases />
+      <LandingExamples />
+      <LandingBenefits />
+      <LandingCTA />
+    </>
+  );
 }

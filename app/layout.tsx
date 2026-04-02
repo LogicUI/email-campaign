@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { TanStackProvider } from "@/tanStack/provider";
+import { NavigationWrapper } from "@/components/navigation/navigation-wrapper";
 
 import "./globals.css";
 
@@ -17,7 +18,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <TanStackProvider>{children}</TanStackProvider>
+        <TanStackProvider>
+          <NavigationWrapper>{children}</NavigationWrapper>
+        </TanStackProvider>
       </body>
     </html>
   );
