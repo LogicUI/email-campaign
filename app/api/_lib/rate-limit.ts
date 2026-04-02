@@ -35,8 +35,8 @@ const RATE_LIMITS: Record<string, RateLimitConfig> = {
   // Bulk operations: 10 requests per minute (resource-intensive)
   bulk: { points: 10, duration: 60 },
 
-  // Authentication: 5 requests per 5 minutes (prevent brute force)
-  auth: { points: 5, duration: 300 },
+  // Authentication: 100 requests per minute (prevent abuse while allowing legitimate logins)
+  auth: { points: 100, duration: 60 },
 };
 
 /**
