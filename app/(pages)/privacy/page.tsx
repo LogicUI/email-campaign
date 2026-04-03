@@ -246,7 +246,7 @@ export default function PrivacyPage() {
                 Your data is shared with Google services solely to execute the functions you request:
               </p>
               <ul className="space-y-2 mb-4">
-                <li>• <strong>Gmail API</strong>: Emails you send are delivered through Google's email infrastructure</li>
+                <li>• <strong>Gmail API</strong>: Emails you send are delivered through Google&apos;s email infrastructure</li>
                 <li>• <strong>Google Sheets API</strong>: Recipient lists and campaign results are stored in your Google Sheets</li>
                 <li>• <strong>Google Drive API</strong>: Spreadsheet metadata is retrieved to display your available files</li>
               </ul>
@@ -283,11 +283,11 @@ export default function PrivacyPage() {
               </ul>
 
               <h4 className="font-semibold mb-2">How to Revoke Google Access</h4>
-              <p className="mb-2">To revoke this application's access to your Google account:</p>
+              <p className="mb-2">To revoke this application&apos;s access to your Google account:</p>
               <ol className="list-decimal list-inside space-y-2">
                 <li>Go to <a href="https://myaccount.google.com/permissions" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">Google Account Permissions</a></li>
                 <li>Find this application in the list of third-party apps</li>
-                <li>Click "Remove Access"</li>
+                <li>Click &quot;Remove Access&quot;</li>
               </ol>
 
               <h4 className="font-semibold mb-2 mt-4">To Delete Your Account</h4>
